@@ -127,8 +127,8 @@ void *cv_threadfunc (void *ptr) {
                 //lock mutex for rgb image
                 pthread_mutex_lock( &mutex_rgb );
                 // show image to window
-                cvCvtColor(rgbimg,tempimg,CV_GRAY2RGB);
-                cvShowImage(FREENECTOPENCV_WINDOW_N, tempimg);
+                // cvCvtColor(rgbimg,tempimg,CV_GRAY2RGB);
+                cvShowImage(FREENECTOPENCV_WINDOW_N, rgbimg);
                 //unlock mutex
                 pthread_mutex_unlock( &mutex_rgb );
 
