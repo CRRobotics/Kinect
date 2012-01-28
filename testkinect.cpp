@@ -147,6 +147,11 @@ void *cv_threadfunc (void *ptr) {
 		// /* Threshold test */
 		// cvThreshold(timg, timg, 90, 255, CV_THRESH_BINARY);
 
+		// Contour finding
+		cvFindContours(timg, storage, &contourResult, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
+		
+		// START HERE
+
 		cvShowImage (FREENECTOPENCV_WINDOW_N,timg);
                 // wait for quit key
                 if( cvWaitKey( 15 )==27 )
