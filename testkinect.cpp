@@ -113,7 +113,17 @@ void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
  * thread for displaying the opencv content
  */
 void *cv_threadfunc (void *ptr) {
-        // use image polling
+	IplImage* timg = cvCloneImage(rgbimg); 
+	CvSize sz = cvSize( timg->width & -2, timg->height & -2);
+	IplImage *pyr = cvCreateImage(cvSize(sz.width/2, sz.height/2), 8, 1);
+
+	CvStorage* storage = cvCreateMemStorage(0);
+	CvSeq* contourResult;
+	CvSeq* squares = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvPoint), storage);
+	
+	cvSetImageROI(timg, cvRect(0, 0, sz.width, sz.height));
+
+	// use image polling
         while (1) {
                 // //lock mutex for depth image
                 // pthread_mutex_lock( &mutex_depth );
@@ -126,12 +136,18 @@ void *cv_threadfunc (void *ptr) {
 
                 //lock mutex for rgb image
                 pthread_mutex_lock( &mutex_rgb );
-                // show image to window
-                // cvCvtColor(rgbimg,tempimg,CV_GRAY2RGB);
-                cvShowImage(FREENECTOPENCV_WINDOW_N, rgbimg);
+		cvCopy(rgbimg, timg, 0);
                 //unlock mutex
                 pthread_mutex_unlock( &mutex_rgb );
 
+		// /* Blur test */
+		// cvPyrDown(timg, pyr, 7);
+		// cvPyrUp(pyr, timg, 7);
+
+		// /* Threshold test */
+		// cvThreshold(timg, timg, 90, 255, CV_THRESH_BINARY);
+
+		cvShowImage (FREENECTOPENCV_WINDOW_N,timg);
                 // wait for quit key
                 if( cvWaitKey( 15 )==27 )
                                 break;
