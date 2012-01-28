@@ -60,6 +60,7 @@ clean:
 #define FREENECTOPENCV_WINDOW_D "Depthimage"
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
 #define FREENECTOPENCV_RGB_DEPTH 3
+#define FREENECTOPENCV_IR_DEPTH 1
 #define FREENECTOPENCV_DEPTH_DEPTH 1
 #define FREENECTOPENCV_RGB_WIDTH 640
 #define FREENECTOPENCV_RGB_HEIGHT 480
@@ -126,7 +127,7 @@ void *cv_threadfunc (void *ptr) {
                 //lock mutex for rgb image
                 pthread_mutex_lock( &mutex_rgb );
                 // show image to window
-                cvCvtColor(rgbimg,tempimg,CV_BGR2RGB);
+                cvCvtColor(rgbimg,tempimg,CV_GRAY2RGB);
                 cvShowImage(FREENECTOPENCV_WINDOW_N, tempimg);
                 //unlock mutex
                 pthread_mutex_unlock( &mutex_rgb );
@@ -165,7 +166,7 @@ int main(int argc, char **argv)
         // cvNamedWindow( FREENECTOPENCV_WINDOW_D, CV_WINDOW_AUTOSIZE );
         cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
         // depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH);
-        rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
+        rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_IR_DEPTH);
 	printf("rgbimg:%x\n", rgbimg);
 	fflush(stdout);
         tempimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
