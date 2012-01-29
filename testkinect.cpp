@@ -116,6 +116,7 @@ void *cv_threadfunc (void *ptr) {
 	IplImage* timg = cvCloneImage(rgbimg); // Image we do our processing on
 	IplImage* dimg = cvCloneImage(rgbimg); // Image we display and draw on
 	CvSize sz = cvSize( timg->width & -2, timg->height & -2);
+	IplImage* outimg = cvCreateImage(sz, 8, 3);
 
 	CvMemStorage* storage = cvCreateMemStorage(0);
 	// Sequence for squares - sets of 4 points
@@ -132,34 +133,31 @@ void *cv_threadfunc (void *ptr) {
 	// use image polling
 	while (1) {
 		squares = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvPoint), storage);
-		// ___Depth processing, unused___
-		// //lock mutex for depth image
-		// pthread_mutex_lock( &mutex_depth );
-		// // show image to window
-		// cvCvtColor(depthimg,tempimg,CV_GRAY2BGR);
-		// cvCvtColor(tempimg,tempimg,CV_HSV2BGR);
-		// cvShowImage(FREENECTOPENCV_WINDOW_D,tempimg);
-		// //unlock mutex for depth image
-		// pthread_mutex_unlock( &mutex_depth ); //lock mutex for rgb image pthread_mutex_lock( &mutex_rgb );
-		cvCopy(rgbimg, timg, 0);
+
+		pthread_mutex_lock( &mutex_rgb );
 		cvCopy(rgbimg, dimg, 0);
-		//unlock mutex
+		cvCopy(rgbimg, timg, 0);
 		pthread_mutex_unlock( &mutex_rgb );
+
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		// Decide whether tests are going to run on timg or dimg.
 
 		// BLUR TEST
-		// cvPyrDown(timg, pyr, 7);
+		// cvPyrDown(dimg, pyr, 7);
 		// cvPyrUp(pyr, timg, 7);
 
 		// THRESHOLD TEST 
 		cvThreshold(timg, timg, 50, 255, CV_THRESH_BINARY);
+		// cvThreshold(dimg, dimg, 100, 255, CV_THRESH_BINARY);
+
+		// DILATE TEST
+		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
+		cvDilate(timg, timg, element, 1);
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		// Contour finding
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
-		
-		printf("contours: %x\n", contours);
-		fflush(stdout);
 
 		while (contours)
 		{
@@ -167,7 +165,7 @@ void *cv_threadfunc (void *ptr) {
 			result = cvApproxPoly(contours, sizeof(CvContour), storage, CV_POLY_APPROX_DP, cvContourPerimeter(contours) * 0.02, 0);
 			// Filter small contours and contours w/o 4 vertices (filters noise, finds rectangles)
 			if (result->total == 4 && 
-				fabs(cvContourArea(result, CV_WHOLE_SEQ)) > 1000 && 
+				fabs(cvContourArea(result, CV_WHOLE_SEQ)) > 400 && 
 				cvCheckContourConvexity(result))
 			{
 				// Skipped checking whether angles were close to 90 degrees here; may want to implement.
@@ -200,15 +198,10 @@ void *cv_threadfunc (void *ptr) {
 			CV_READ_SEQ_ELEM(pt[2], reader);
 			CV_READ_SEQ_ELEM(pt[3], reader);
 			
-			// This is incorrect; find out how to actually draw.
-			cvPolyLine(dimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 1, CV_AA, 0);
+			cvPolyLine(outimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 2, CV_AA, 0);
 		}
 
-		printf("\nsquares: %x\n", squares);
-		printf("result: %x\n", result);
-		fflush(stdout);
-
-		cvShowImage (FREENECTOPENCV_WINDOW_N,dimg);
+		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
 		cvClearMemStorage(storage);
 		// wait for quit key
 		if( cvWaitKey( 15 )==27 )
@@ -242,9 +235,6 @@ int main(int argc, char **argv)
 
 	// cvNamedWindow( FREENECTOPENCV_WINDOW_D, CV_WINDOW_AUTOSIZE ); // Depth window, unused.
 	// depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH); // Depth image storage, unused.
-
-	// printf("rgbimg:%x\n", rgbimg); // Debug.
-	// fflush(stdout);
 
 	cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
 	rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_IR_DEPTH);
