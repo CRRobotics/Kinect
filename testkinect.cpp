@@ -55,6 +55,9 @@ rm -f $(OBJS) $(TARGET)
 
 #include <cv.h>
 #include <highgui.h>
+#include <cvblobslib/Blob.h>
+#include <cvblobslib/BlobResult.h>
+#include <cvblobslib/BlobExtraction.h>
 
 
 #define FREENECTOPENCV_WINDOW_D "Depthimage"
@@ -120,17 +123,17 @@ void *cv_threadfunc (void *ptr) {
 		// cvPyrDown(dimg, pyr, 7);
 		// cvPyrUp(pyr, timg, 7);
 
-		// THRESHOLD TEST 
-		cvThreshold(timg, timg, 90, 255, CV_THRESH_BINARY);
-		// cvThreshold(dimg, dimg, 100, 255, CV_THRESH_BINARY);
-
 		// DILATE TEST
-		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
-		cvDilate(timg, timg, element, 6);
-		cvErode(timg, timg, element, 4);
-		
+		IplConvKernel* element = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
+		IplConvKernel* element2 = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
+		cvDilate(timg, timg, element, 2);
+		cvErode(timg, timg, element2, 3);
+
+		// THRESHOLD TEST 
+		cvThreshold(timg, timg, 200, 255, CV_THRESH_BINARY);
+
 		// Output processed or raw image.
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
+		cvCvtColor(timg, outimg, CV_GRAY2BGR);
 
 		// CONTOUR FINDING
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
@@ -145,6 +148,7 @@ void *cv_threadfunc (void *ptr) {
 				cvCheckContourConvexity(result))
 			{
 				// Skipped checking whether angles were close to 90 degrees here; may want to implement.
+				// Probably also want to check if it's square enough to filter out ex. long windows.
 
 				for (int i = 0; i < 4; i++)
 				{
@@ -177,16 +181,21 @@ void *cv_threadfunc (void *ptr) {
 			CV_READ_SEQ_ELEM(pt[2], reader);
 			CV_READ_SEQ_ELEM(pt[3], reader);
 			// Draw rectangle on output
-			cvPolyLine(outimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 2, CV_AA, 0);
+			cvPolyLine(outimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 1, CV_AA, 0);
 			// Make rectangles
+			// Print (temporary)
+			printf("Rect[0]: %d, %d\n", pt[0].x, pt[0].y);
+			printf("Rect[1]: %d, %d\n", pt[1].x, pt[1].y);
+			printf("Rect[2]: %d, %d\n", pt[2].x, pt[2].y);
+			printf("Rect[3]: %d, %d\n\n", pt[3].x, pt[3].y);
+			fflush(stdout);
+
 		}
 
 		// Print on order
 		if( cvWaitKey( 15 )==27 )
 		{
-			printf("%x\n", rect[0].x);
-			fflush(stdout);
-		}
+				}
 
 		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
 		cvClearMemStorage(storage);
