@@ -70,37 +70,15 @@ rm -f $(OBJS) $(TARGET)
 
 
 
-// IplImage* depthimg = 0;
 IplImage* rgbimg = 0;
 IplImage* tempimg = 0;
-// pthread_mutex_t mutex_depth = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
 pthread_t cv_thread;
-
-
-// callback for depthimage, called by libfreenect
-// void depth_cb(freenect_device *dev, void *depth, uint32_t timestamp)
-// 
-// {
-//         cv::Mat depth8;
-//         cv::Mat mydepth = cv::Mat( FREENECTOPENCV_DEPTH_WIDTH,FREENECTOPENCV_DEPTH_HEIGHT, CV_16UC1, depth);
-//         
-//         mydepth.convertTo(depth8, CV_8UC1, 1.0/4.0);
-//         pthread_mutex_lock( &mutex_depth );
-//         memcpy(depthimg->imageData, depth8.data, 640*480);
-//         // unlock mutex
-//         pthread_mutex_unlock( &mutex_depth );
-// 
-// }
-
-
 
 // callback for rgbimage, called by libfreenect
 
 void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
 {
-
-
 	// lock mutex for opencv rgb image
 	pthread_mutex_lock( &mutex_rgb );
 	memcpy(rgbimg->imageData, rgb, FREENECT_VIDEO_RGB_SIZE);
@@ -114,15 +92,14 @@ void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
  */
 void *cv_threadfunc (void *ptr) {
 	IplImage* timg = cvCloneImage(rgbimg); // Image we do our processing on
-	IplImage* dimg = cvCloneImage(rgbimg); // Image we display and draw on
+	IplImage* dimg = cvCloneImage(rgbimg); // Image we draw on
 	CvSize sz = cvSize( timg->width & -2, timg->height & -2);
 	IplImage* outimg = cvCreateImage(sz, 8, 3);
 
 	CvMemStorage* storage = cvCreateMemStorage(0);
-	// Sequence for squares - sets of 4 points
-	CvSeq* squares;
-	CvSeq* contours;
-	CvSeq* result;
+	CvSeq* squares; // Sequence for squares - sets of 4 points
+	CvSeq* contours; // Raw contours list
+	CvSeq* result; // Single contour being processed
 
 	IplImage *pyr = cvCreateImage(cvSize(sz.width/2, sz.height/2), 8, 1);
 
@@ -139,10 +116,6 @@ void *cv_threadfunc (void *ptr) {
 		cvCopy(rgbimg, timg, 0);
 		pthread_mutex_unlock( &mutex_rgb );
 
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
-
-		// Decide whether tests are going to run on timg or dimg.
-
 		// BLUR TEST
 		// cvPyrDown(dimg, pyr, 7);
 		// cvPyrUp(pyr, timg, 7);
@@ -154,10 +127,11 @@ void *cv_threadfunc (void *ptr) {
 		// DILATE TEST
 		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
 		cvDilate(timg, timg, element, 1);
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
-		// Contour finding
+		// CONTOUR FINDING
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
+
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		while (contours)
 		{
@@ -182,11 +156,11 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 
-		// Draw rectangles
+		// DRAW RECTANGLES
 		CvSeqReader reader;
 		cvStartReadSeq(squares, &reader, 0);
 
-		// Read 4 points at a time and draw rectangle on dimg
+		// Read 4 points at a time
 		for (int i = 0; i < squares->total; i += 4)
 		{
 			CvPoint pt[4];
@@ -197,7 +171,7 @@ void *cv_threadfunc (void *ptr) {
 			CV_READ_SEQ_ELEM(pt[1], reader);
 			CV_READ_SEQ_ELEM(pt[2], reader);
 			CV_READ_SEQ_ELEM(pt[3], reader);
-			
+			// Draw rectangle on output
 			cvPolyLine(outimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 2, CV_AA, 0);
 		}
 
@@ -208,13 +182,11 @@ void *cv_threadfunc (void *ptr) {
 			break;
 	}
 	pthread_exit(NULL);
-
 }
 
 
 int main(int argc, char **argv)
 {
-
 	freenect_context *f_ctx;
 	freenect_device *f_dev;
 
@@ -233,9 +205,6 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	// cvNamedWindow( FREENECTOPENCV_WINDOW_D, CV_WINDOW_AUTOSIZE ); // Depth window, unused.
-	// depthimg = cvCreateImage(cvSize(FREENECTOPENCV_DEPTH_WIDTH, FREENECTOPENCV_DEPTH_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_DEPTH_DEPTH); // Depth image storage, unused.
-
 	cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
 	rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_IR_DEPTH);
 	tempimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
@@ -247,18 +216,12 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	// freenect_set_depth_callback(f_dev, depth_cb);
 	freenect_set_video_callback(f_dev, rgb_cb);
 	freenect_set_video_format(f_dev, FREENECT_VIDEO_IR_8BIT);
 
 	printf("init done\n");
 
-
-
-	// freenect_start_depth(f_dev);
 	freenect_start_video(f_dev);
 
 	while(!die && freenect_process_events(f_ctx) >= 0 );
-
-
 }
