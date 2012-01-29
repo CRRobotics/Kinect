@@ -163,25 +163,33 @@ void *cv_threadfunc (void *ptr) {
 		cvStartReadSeq(squares, &reader, 0);
 
 		// Read 4 points at a time
+		CvPoint pt[4];
+		CvPoint *rect = pt;
+		CvRect out[4];
+		CvRect *outrect = out;
 		for (int i = 0; i < squares->total; i += 4)
 		{
-			CvPoint pt[4];
-			CvPoint *rect = pt;
 			int count = 4;
 			
-			CV_READ_SEQ_ELEM(pt[0], reader);
+			// Which point is which corner is unpredictable.
+			CV_READ_SEQ_ELEM(pt[0], reader); 
 			CV_READ_SEQ_ELEM(pt[1], reader);
 			CV_READ_SEQ_ELEM(pt[2], reader);
 			CV_READ_SEQ_ELEM(pt[3], reader);
 			// Draw rectangle on output
 			cvPolyLine(outimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 2, CV_AA, 0);
+			// Make rectangles
+		}
+
+		// Print on order
+		if( cvWaitKey( 15 )==27 )
+		{
+			printf("%x\n", rect[0].x);
+			fflush(stdout);
 		}
 
 		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
 		cvClearMemStorage(storage);
-		// wait for quit key
-		if( cvWaitKey( 15 )==27 )
-			break;
 	}
 	pthread_exit(NULL);
 }
