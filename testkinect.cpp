@@ -121,17 +121,19 @@ void *cv_threadfunc (void *ptr) {
 		// cvPyrUp(pyr, timg, 7);
 
 		// THRESHOLD TEST 
-		cvThreshold(timg, timg, 50, 255, CV_THRESH_BINARY);
+		cvThreshold(timg, timg, 90, 255, CV_THRESH_BINARY);
 		// cvThreshold(dimg, dimg, 100, 255, CV_THRESH_BINARY);
 
 		// DILATE TEST
 		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
-		cvDilate(timg, timg, element, 1);
+		cvDilate(timg, timg, element, 6);
+		cvErode(timg, timg, element, 4);
+		
+		// Output processed or raw image.
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		// CONTOUR FINDING
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
-
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		while (contours)
 		{
@@ -139,7 +141,7 @@ void *cv_threadfunc (void *ptr) {
 			result = cvApproxPoly(contours, sizeof(CvContour), storage, CV_POLY_APPROX_DP, cvContourPerimeter(contours) * 0.02, 0);
 			// Filter small contours and contours w/o 4 vertices (filters noise, finds rectangles)
 			if (result->total == 4 && 
-				fabs(cvContourArea(result, CV_WHOLE_SEQ)) > 400 && 
+				fabs(cvContourArea(result, CV_WHOLE_SEQ)) > 600 && 
 				cvCheckContourConvexity(result))
 			{
 				// Skipped checking whether angles were close to 90 degrees here; may want to implement.
