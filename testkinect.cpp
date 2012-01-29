@@ -208,10 +208,8 @@ void *cv_threadfunc (void *ptr) {
 		printf("result: %x\n", result);
 		fflush(stdout);
 
-		cvClearSeq(squares);
-		cvClearSeq(result);
-
 		cvShowImage (FREENECTOPENCV_WINDOW_N,dimg);
+		cvClearMemStorage(storage);
 		// wait for quit key
 		if( cvWaitKey( 15 )==27 )
 			break;
