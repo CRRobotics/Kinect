@@ -119,7 +119,7 @@ void *cv_threadfunc (void *ptr) {
 
 	CvMemStorage* storage = cvCreateMemStorage(0);
 	// Sequence for squares - sets of 4 points
-	CvSeq* squares = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvPoint), storage);
+	CvSeq* squares;
 	CvSeq* contours;
 	CvSeq* result;
 
@@ -131,6 +131,7 @@ void *cv_threadfunc (void *ptr) {
 
 	// use image polling
 	while (1) {
+		squares = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvPoint), storage);
 		// ___Depth processing, unused___
 		// //lock mutex for depth image
 		// pthread_mutex_lock( &mutex_depth );
@@ -139,10 +140,7 @@ void *cv_threadfunc (void *ptr) {
 		// cvCvtColor(tempimg,tempimg,CV_HSV2BGR);
 		// cvShowImage(FREENECTOPENCV_WINDOW_D,tempimg);
 		// //unlock mutex for depth image
-		// pthread_mutex_unlock( &mutex_depth );
-
-		//lock mutex for rgb image
-		pthread_mutex_lock( &mutex_rgb );
+		// pthread_mutex_unlock( &mutex_depth ); //lock mutex for rgb image pthread_mutex_lock( &mutex_rgb );
 		cvCopy(rgbimg, timg, 0);
 		cvCopy(rgbimg, dimg, 0);
 		//unlock mutex
@@ -155,10 +153,13 @@ void *cv_threadfunc (void *ptr) {
 		// cvPyrUp(pyr, timg, 7);
 
 		// THRESHOLD TEST 
-		// cvThreshold(timg, timg, 90, 255, CV_THRESH_BINARY);
+		cvThreshold(timg, timg, 50, 255, CV_THRESH_BINARY);
 
 		// Contour finding
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
+		
+		printf("contours: %x\n", contours);
+		fflush(stdout);
 
 		while (contours)
 		{
@@ -200,11 +201,10 @@ void *cv_threadfunc (void *ptr) {
 			CV_READ_SEQ_ELEM(pt[3], reader);
 			
 			// This is incorrect; find out how to actually draw.
-			cvPolyLine(dimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 3, CV_AA, 0);
+			cvPolyLine(dimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 1, CV_AA, 0);
 		}
 
 		printf("\nsquares: %x\n", squares);
-		printf("contours: %x\n", contours);
 		printf("result: %x\n", result);
 		fflush(stdout);
 
