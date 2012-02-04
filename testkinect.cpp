@@ -59,7 +59,6 @@ rm -f $(OBJS) $(TARGET)
 #include <cvblobslib/BlobResult.h>
 #include <cvblobslib/BlobExtraction.h>
 
-
 #define FREENECTOPENCV_WINDOW_D "Depthimage"
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
 #define FREENECTOPENCV_RGB_DEPTH 3 // Currently used for tempImg.
@@ -124,13 +123,13 @@ void *cv_threadfunc (void *ptr) {
 		// cvPyrUp(pyr, timg, 7);
 
 		// DILATE TEST
-		IplConvKernel* element = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
-		IplConvKernel* element2 = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
-		cvDilate(timg, timg, element, 2);
-		cvErode(timg, timg, element2, 3);
+		// IplConvKernel* element = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
+		// IplConvKernel* element2 = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
+		// cvDilate(timg, timg, element, 2);
+		// cvErode(timg, timg, element2, 3);
 
 		// THRESHOLD TEST 
-		cvThreshold(timg, timg, 200, 255, CV_THRESH_BINARY);
+		cvThreshold(timg, timg, 70, 255, CV_THRESH_BINARY);
 
 		// Output processed or raw image.
 		cvCvtColor(timg, outimg, CV_GRAY2BGR);
