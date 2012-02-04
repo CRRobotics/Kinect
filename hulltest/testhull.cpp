@@ -59,7 +59,10 @@ void *cv_threadfunc (void *ptr) {
 	CvMemStorage* storage = cvCreateMemStorage(0);
 	CvSeq* squares; // Sequence for squares - sets of 4 points
 	CvSeq* contours; // Raw contours list
-	CvSeq* result; // Single contour being processed
+	CvSeq* hull; // Current convex hull
+	int hullcount; // # of points in hull
+	CvSeq* polyseq; // Sequence to run ApproxPoly on
+	CvSeq* polyresult; // Single contour being processed
 
 	IplImage *pyr = cvCreateImage(cvSize(sz.width/2, sz.height/2), 8, 1);
 
@@ -81,19 +84,56 @@ void *cv_threadfunc (void *ptr) {
 		// cvPyrUp(pyr, timg, 7);
 
 		// DILATE TEST
-		// IplConvKernel* element = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
-		// IplConvKernel* element2 = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
-		// cvDilate(timg, timg, element, 2);
-		// cvErode(timg, timg, element2, 3);
+		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
+		IplConvKernel* element2 = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
+		cvDilate(timg, timg, element2, 1);
+		cvErode(timg, timg, element, 1);
 
 		// THRESHOLD TEST 
-		cvThreshold(timg, timg, 70, 255, CV_THRESH_BINARY);
+		cvThreshold(timg, timg, 200, 255, CV_THRESH_BINARY);
 
 		// Output processed or raw image.
-		cvCvtColor(timg, outimg, CV_GRAY2BGR);
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
-		// CONTOUR FINDING
+		// CONTOUR FINDING + CONVEX HULL
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
+
+		CvPoint draw1; // Store points to draw line between
+		CvPoint draw2; // ''
+		while (contours)
+		{
+			// Filter noise
+			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 100)
+			{
+				hull = cvConvexHull2( contours, storage, CV_CLOCKWISE, 0 );
+				hullcount = hull->total;
+
+				// Draw hull and push into polyseq
+				draw1 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hullcount - 1 );
+				for (int i = 0; i < hullcount; i++)
+				{
+					draw2 = **CV_GET_SEQ_ELEM( CvPoint*, hull, i );
+					// cvSeqPush( polyseq, &draw2 );
+					cvLine( outimg, draw1, draw2, CV_RGB(255,0,0), 2, 8, 0 );
+
+					// Figure out how to draw onto a grayscale image.
+					// Also, does FindContours just clear the image, or change it such
+					// that it no longer works as a normal image and cannot be drawn on?
+					// cvLine( timg, draw1, draw2, CV_RGB(0,0,0), 2, 8, 0 );
+
+					draw1 = draw2;
+				}
+			}
+			contours = contours->h_next;
+		}
+
+		// Unsure what to do here. One solution is to draw the lines in the above block back into timg,
+		// and cvFindContours() again, then cvApproxPoly the result, but that is inelegant.
+		// Ideally we could get cvApproxPoly to work on either the raw hull or a copied CvSeq.
+
+		// CURRENTLY TRYING: Drawing then using FindContours again.
+
+		// cvApproxPoly( polyseq, sizeof(CvContour), storage, CV_POLY_APPROX_DP, 
 
 //		while (contours)
 //		{
