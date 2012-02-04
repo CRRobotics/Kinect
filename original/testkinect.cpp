@@ -8,48 +8,12 @@ http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
 http://www.gnu.org/licenses/gpl-3.0.txt
  */
 
-
-/*
- * Makefile for ubuntu, assumes that libfreenect.a is in /usr/lib, and libfreenect.h is in /usr/include
- *
- * make sure you have the latest version of freenect from git!
-
- ***************************************************************************************************************************
- * Makefile
- ***************************************************************************************************************************
- CXXFLAGS =     -O2 -g -Wall -fmessage-length=0 `pkg-config opencv --cflags ` -I /usr/include/libusb-1.0
-
-
-
- OBJS =         freenectopencv.o
-
- LIBS =    `pkg-config opencv --libs` -lfreenect
-
- TARGET =        kinectopencv
-
- $(TARGET):      $(OBJS)
- $(CXX) -o $(TARGET) $(OBJS) $(LIBS)
-
-all:    $(TARGET)
-
-clean:
-rm -f $(OBJS) $(TARGET)
-
-
- ***************************************************************************************************************************
- * End of Makefile
- ***************************************************************************************************************************
-
-
- */
-
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 
 #include <libfreenect/libfreenect.h>
 #include <pthread.h>
-
 
 #define CV_NO_BACKWARD_COMPATIBILITY
 
@@ -59,17 +23,11 @@ rm -f $(OBJS) $(TARGET)
 #include <cvblobslib/BlobResult.h>
 #include <cvblobslib/BlobExtraction.h>
 
-#define FREENECTOPENCV_WINDOW_D "Depthimage"
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
 #define FREENECTOPENCV_RGB_DEPTH 3 // Currently used for tempImg.
 #define FREENECTOPENCV_IR_DEPTH 1 // Current display depth.
-#define FREENECTOPENCV_DEPTH_DEPTH 1
 #define FREENECTOPENCV_RGB_WIDTH 640
 #define FREENECTOPENCV_RGB_HEIGHT 480
-#define FREENECTOPENCV_DEPTH_WIDTH 640
-#define FREENECTOPENCV_DEPTH_HEIGHT 480
-
-
 
 
 IplImage* rgbimg = 0;

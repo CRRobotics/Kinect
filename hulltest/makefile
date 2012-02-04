@@ -2,9 +2,10 @@ CXXFLAGS =	-O2 -g -Wall -fmessage-length=0 `pkg-config opencv --cflags ` -I /usr
 
 
 
-OBJS =	freenectopencv.o
+OBJS =	testhull.o
 
-LIBS =	pkg-config opencv --libs` -lfreenect
+
+LIBS =	`pkg-config opencv --libs` -lfreenect -lblob
 
 TARGET =	kinectopencv
 
