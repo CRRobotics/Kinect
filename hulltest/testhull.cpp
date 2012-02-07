@@ -57,11 +57,10 @@ void *cv_threadfunc (void *ptr) {
 	IplImage* outimg = cvCreateImage(sz, 8, 3);
 
 	CvMemStorage* storage = cvCreateMemStorage(0);
-	CvSeq* squares; // Sequence for squares - sets of 4 points
 	CvSeq* contours; // Raw contours list
 	CvSeq* hull; // Current convex hull
 	int hullcount; // # of points in hull
-	CvSeq* polyseq; // Sequence to run ApproxPoly on
+	CvSeq* polyseq = cvCreateSeq( 0, sizeof(CvSeq), sizeof(CvPoint), storage ); // Sequence to run ApproxPoly on
 	CvSeq* polyresult; // Single contour being processed
 
 	IplImage *pyr = cvCreateImage(cvSize(sz.width/2, sz.height/2), 8, 1);
@@ -72,8 +71,6 @@ void *cv_threadfunc (void *ptr) {
 
 	// use image polling
 	while (1) {
-		squares = cvCreateSeq(0, sizeof(CvSeq), sizeof(CvPoint), storage);
-
 		pthread_mutex_lock( &mutex_rgb );
 		cvCopy(rgbimg, dimg, 0);
 		cvCopy(rgbimg, timg, 0);
@@ -107,33 +104,42 @@ void *cv_threadfunc (void *ptr) {
 			{
 				hull = cvConvexHull2( contours, storage, CV_CLOCKWISE, 0 );
 				hullcount = hull->total;
+				printf("Hull count: %d\n", hullcount);
 
 				// Draw hull and push into polyseq
 				draw1 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hullcount - 1 );
 				for (int i = 0; i < hullcount; i++)
 				{
 					draw2 = **CV_GET_SEQ_ELEM( CvPoint*, hull, i );
-					// cvSeqPush( polyseq, &draw2 );
+					printf("Point: %d, %d\n", draw2.x, draw2.y);
+					fflush(stdout);
+					cvSeqPush( polyseq, &draw2 );
+					printf("Pushed");
+					fflush(stdout);
 					cvLine( outimg, draw1, draw2, CV_RGB(255,0,0), 2, 8, 0 );
 
 					// Figure out how to draw onto a grayscale image.
 					// Also, does FindContours just clear the image, or change it such
 					// that it no longer works as a normal image and cannot be drawn on?
-					// cvLine( timg, draw1, draw2, CV_RGB(0,0,0), 2, 8, 0 );
+					// cvLine( dimg, draw1, draw2, 255, 2, 8, 0 );
 
 					draw1 = draw2;
 				}
+				// polyseq->flags = polyseq->flags | 512;
+
+				hull->flags = hull->flags | 512;
+				cvApproxPoly( hull, sizeof(CvPoint), storage, CV_POLY_APPROX_DP, 1, 0);
 			}
 			contours = contours->h_next;
 		}
 
-		// Unsure what to do here. One solution is to draw the lines in the above block back into timg,
+
+		// Unsure what to do here. One solution is to draw the lines in the above block back into timg, (or another buffer)
 		// and cvFindContours() again, then cvApproxPoly the result, but that is inelegant.
 		// Ideally we could get cvApproxPoly to work on either the raw hull or a copied CvSeq.
 
 		// CURRENTLY TRYING: Drawing then using FindContours again.
 
-		// cvApproxPoly( polyseq, sizeof(CvContour), storage, CV_POLY_APPROX_DP, 
 
 //		while (contours)
 //		{
