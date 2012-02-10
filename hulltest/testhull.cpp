@@ -1,16 +1,26 @@
-/*  freenectopencv.cpp
+/*
+testhull.cpp
+
+Written by the members of 
+FIRST Robotics Team #639 - Code Red Robotics
+For the 2012 FIRST Robotics Competition.
+
+Based on:
+freenectopencv.cpp
 
     Copyright (C) 2010  Arne Bernin <arne@alamut.de>
 
     This code is licensed to you under the terms of the GNU GPL, version 2 or version 3;
-see:
-http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
-http://www.gnu.org/licenses/gpl-3.0.txt
+	see:
+	http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+	http://www.gnu.org/licenses/gpl-3.0.txt
  */
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <math.h>
+#include <cstring>
 
 #include <libfreenect/libfreenect.h>
 #include <pthread.h>
@@ -19,9 +29,7 @@ http://www.gnu.org/licenses/gpl-3.0.txt
 
 #include <cv.h>
 #include <highgui.h>
-#include <cvblobslib/Blob.h>
-#include <cvblobslib/BlobResult.h>
-#include <cvblobslib/BlobExtraction.h>
+
 
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
 #define FREENECTOPENCV_RGB_DEPTH 3 // Currently used for tempImg.
@@ -29,14 +37,125 @@ http://www.gnu.org/licenses/gpl-3.0.txt
 #define FREENECTOPENCV_RGB_WIDTH 640
 #define FREENECTOPENCV_RGB_HEIGHT 480
 
+typedef struct 
+{
+	CvPoint* points[4];
+	CvPoint center;
+	int dist;
+}PolyVertices;
 
 IplImage* rgbimg = 0;
 IplImage* tempimg = 0;
 pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
 pthread_t cv_thread;
 
-// callback for rgbimage, called by libfreenect
 
+void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img ){
+	// Sequence is the hull
+	// poly->points is the array that stores the points of the rectangle
+	// img is the image we are drawing lines and such on. Not strictly necessary.
+	printf("Sequence: %d\n", sequence->total);
+
+	/*CALCULATE CENTER*/
+	// int center[2] = {0}; //center point of the poly x, y
+	int extremes[4]; //minX, maxX, minY, maxY
+	extremes[0] = ((CvPoint*)cvGetSeqElem(sequence, 0))->x;
+	extremes[1] = extremes[0];
+	extremes[2] = ((CvPoint*)cvGetSeqElem(sequence, 0))->y;
+	extremes[3] = extremes[2];
+
+
+	CvSeqReader seqReader;
+	cvStartReadSeq(sequence, &seqReader, 0);
+	for(int i = 0; i < sequence->total; i++){
+		CvPoint* point = (CvPoint*) seqReader.ptr;
+
+		// printf("Center x, y: %d, %d\n", point->x, point->y); 
+
+		if(point->x < extremes[0]) extremes[0] = point->x;
+		if(point->x > extremes[1]) extremes[1] = point->x;
+
+		if(point->y < extremes[2]) extremes[2] = point->y;
+		if(point->y > extremes[3]) extremes[3] = point->y;
+		CV_NEXT_SEQ_ELEM(seqReader.seq->elem_size, seqReader);
+	}
+	poly->center.x = (extremes[0] + extremes[1])/2;
+	poly->center.y = (extremes[2] + extremes[3])/2;
+
+	cvCircle( img, poly->center, 2, CV_RGB(255,0,255), -1, 8, 0 );
+	printf("Calculated Center (%d): %i, %i\n", sequence->total, poly->center.x, poly->center.y);
+
+	/*CALCULATE DISTANCES FROM CENTER AND CALCULATE MAX DIST IN EACH QUADRANT*/
+	double distances[4] = {0, 0, 0, 0};
+	double distance; //current point's distance
+
+	int qKey = 0;
+
+	CvSeqReader seqReader2;
+	cvStartReadSeq(sequence, &seqReader2, 0);
+	for(int i = 0; i < sequence->total; i++){
+		CvPoint* point = (CvPoint*) seqReader2.ptr;
+		distance = pow((double)point->x - poly->center.x, 2) + pow((double)point->y - poly->center.y, 2);
+		qKey = ((point->x > poly->center.x ? 1 : 0) + (point->y < poly->center.y ? 2 : 0));
+
+		//printf("X: %d, Y: %d, Dist: %f, Key: %d\n ", point->x, point->y, distance, qKey);
+		/* FILL POINTS */
+		if(distance > distances[qKey]){
+			poly->points[qKey] = point;
+			distances[qKey] = distance;
+
+		}
+		CV_NEXT_SEQ_ELEM(seqReader2.seq->elem_size, seqReader2);
+	}
+
+	if(!(poly->points[0] == NULL || poly->points[1] == NULL || poly->points[2] == NULL || poly->points[3] == NULL))
+	{
+		/* FILL poly->dist */
+		poly->dist = pow((double)poly->points[0]->x - poly->center.x, 2) + pow((double)poly->points[0]->y - poly->center.y, 2);
+		printf("Dist0: %d\n", poly->dist);
+
+		// Draw vertices
+		cvCircle( img, *poly->points[0], 4, CV_RGB(255,0,255), -1, 8, 0 );
+		cvCircle( img, *poly->points[1], 4, CV_RGB(255,0,255), -1, 8, 0 );
+		cvCircle( img, *poly->points[2], 4, CV_RGB(255,0,255), -1, 8, 0 );
+		cvCircle( img, *poly->points[3], 4, CV_RGB(255,0,255), -1, 8, 0 );
+	}
+// 	printf("Vertices returned:  (%d,%d),(%d,%d),(%d,%d),(%d,%d)\n",
+// 			poly->points[0]->x,poly->points[0]->y,poly->points[1]->x,poly->points[1]->y,
+// 			poly->points[2]->x,poly->points[2]->y,poly->points[3]->x,poly->points[3]->y);
+}
+
+// Return whether we want to delete poly.
+bool FilterSub(vector<PolyVertices> &list, PolyVertices poly)
+{
+	for (int i = 0; i < list.size(); i++)
+	{
+		double result = sqrt(pow((double)list[i].center.x - (double)poly.center.x, 2) + pow((double)list[i].center.y - (double)poly.center.y, 2));
+		if ((result < 50) && (list[i].dist != poly.dist))
+			if (list[i].dist > poly.dist)
+				return true;
+	}
+	return false;
+}
+
+void FilterInnerRects(vector<PolyVertices> &list)
+{
+	ugly:
+	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
+	{
+		printf("Filter\n");
+		if (FilterSub(list, *p))
+		{
+			printf("Delete\n");
+			fflush(stdout);
+			list.erase(p);
+			goto ugly;
+		}
+	}
+}
+
+
+// callback for rgbimage, called by libfreenect
 void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
 {
 	// lock mutex for opencv rgb image
@@ -52,142 +171,108 @@ void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
  */
 void *cv_threadfunc (void *ptr) {
 	IplImage* timg = cvCloneImage(rgbimg); // Image we do our processing on
-	IplImage* dimg = cvCloneImage(rgbimg); // Image we draw on
+	IplImage* dimg = cvCloneImage(timg); // Image we draw on
 	CvSize sz = cvSize( timg->width & -2, timg->height & -2);
 	IplImage* outimg = cvCreateImage(sz, 8, 3);
 
 	CvMemStorage* storage = cvCreateMemStorage(0);
-	CvSeq* contours; // Raw contours list
-	CvSeq* hull; // Current convex hull
-	int hullcount; // # of points in hull
-	CvSeq* polyseq = cvCreateSeq( 0, sizeof(CvSeq), sizeof(CvPoint), storage ); // Sequence to run ApproxPoly on
-	CvSeq* polyresult; // Single contour being processed
-
-	IplImage *pyr = cvCreateImage(cvSize(sz.width/2, sz.height/2), 8, 1);
 
 	// Set region of interest
 	cvSetImageROI(timg, cvRect(0, 0, sz.width, sz.height));
 	cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height));
 
-	// use image polling
-	while (1) {
+	// Main loop
+	while (1) 
+	{
+		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage ); // Sequence to run ApproxPoly on
+		CvSeq* contours; // Raw contours list
+		CvSeq* hull; // Current convex hull
+		int hullcount; // # of points in hull
+
 		pthread_mutex_lock( &mutex_rgb );
 		cvCopy(rgbimg, dimg, 0);
 		cvCopy(rgbimg, timg, 0);
 		pthread_mutex_unlock( &mutex_rgb );
 
-		// BLUR TEST
-		// cvPyrDown(dimg, pyr, 7);
-		// cvPyrUp(pyr, timg, 7);
-
-		// DILATE TEST
+		/* DILATE TEST */
 		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
 		IplConvKernel* element2 = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
 		cvDilate(timg, timg, element2, 1);
 		cvErode(timg, timg, element, 1);
 
-		// THRESHOLD TEST 
-		cvThreshold(timg, timg, 200, 255, CV_THRESH_BINARY);
+		/* THRESHOLD TEST */
+		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
-		// Output processed or raw image.
+		/* Output processed or raw image. */
 		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
-		// CONTOUR FINDING + CONVEX HULL
+		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
+ 
+		/* CONVEX HULL + POLYGON APPROXIMATION*/
+		CvPoint* draw1; // Store points to draw line between
+		CvPoint* draw2; // ''
+		vector<PolyVertices> rectangleList;
 
-		CvPoint draw1; // Store points to draw line between
-		CvPoint draw2; // ''
+		printf("\n\n");
 		while (contours)
 		{
+			// List of raw rectangles
+			PolyVertices fullrect;
+			memset((char*)&fullrect, 0, sizeof(PolyVertices));
+
 			// Filter noise
-			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 100)
+			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 600)
 			{
-				hull = cvConvexHull2( contours, storage, CV_CLOCKWISE, 0 );
+				hull = cvConvexHull2( contours, storage, CV_CLOCKWISE, 1 );
 				hullcount = hull->total;
-				printf("Hull count: %d\n", hullcount);
 
-				// Draw hull and push into polyseq
-				draw1 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hullcount - 1 );
-				for (int i = 0; i < hullcount; i++)
+				// Draw hull
+ 				draw1 = (CvPoint*)cvGetSeqElem(hull, hullcount - 1);
+ 				for (int i = 0; i < hullcount; i++)
+ 				{
+ 					draw2 = (CvPoint*)cvGetSeqElem( hull, i );
+ 					cvLine( outimg, *draw1, *draw2, CV_RGB(255,0,0), 1, 8, 0 );
+ 					draw1 = draw2;
+					// cvCircle( outimg, *draw2, 4, CV_RGB(0,100,150), -1, 8, 0 );
+ 				}
+
+				// Draw polygon
+				polyToQuad(hull, &fullrect, outimg);
+				if(!(fullrect.points[0] == NULL || fullrect.points[1] == NULL || fullrect.points[2] == NULL || fullrect.points[3] == NULL))
 				{
-					draw2 = **CV_GET_SEQ_ELEM( CvPoint*, hull, i );
-					printf("Point: %d, %d\n", draw2.x, draw2.y);
-					fflush(stdout);
-					cvSeqPush( polyseq, &draw2 );
-					printf("Pushed");
-					fflush(stdout);
-					cvLine( outimg, draw1, draw2, CV_RGB(255,0,0), 2, 8, 0 );
+					/* FILL rectangleList */
+					rectangleList.push_back(fullrect);
 
-					// Figure out how to draw onto a grayscale image.
-					// Also, does FindContours just clear the image, or change it such
-					// that it no longer works as a normal image and cannot be drawn on?
-					// cvLine( dimg, draw1, draw2, 255, 2, 8, 0 );
-
-					draw1 = draw2;
+					printf("RESULT: (%d,%d), (%d,%d), (%d,%d), (%d,%d)\n",
+					fullrect.points[0]->x, fullrect.points[0]->y, fullrect.points[1]->x, fullrect.points[1]->y,
+						fullrect.points[2]->x, fullrect.points[2]->y, fullrect.points[3]->x, fullrect.points[3]->y);
+					fflush(stdout);
 				}
-				// polyseq->flags = polyseq->flags | 512;
 
-				hull->flags = hull->flags | 512;
-				cvApproxPoly( hull, sizeof(CvPoint), storage, CV_POLY_APPROX_DP, 1, 0);
 			}
+			cvClearSeq(polyseq);
 			contours = contours->h_next;
 		}
 
+		/* FILTER OVERLAPPING RECTANGLES */
+		printf("RectangleList: %d\n", rectangleList.size());
+		FilterInnerRects(rectangleList);
+		printf("RectangleList: %d\n", rectangleList.size());
 
-		// Unsure what to do here. One solution is to draw the lines in the above block back into timg, (or another buffer)
-		// and cvFindContours() again, then cvApproxPoly the result, but that is inelegant.
-		// Ideally we could get cvApproxPoly to work on either the raw hull or a copied CvSeq.
+		if (outimg)
+		{
+			for (int i = 0; i < rectangleList.size(); i++)
+			{
+				cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
+				cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
+				cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
+				cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+			}
+		}
 
-		// CURRENTLY TRYING: Drawing then using FindContours again.
+		/* ADD MATH/SENDING FOR rectangleList HERE */
 
-
-//		while (contours)
-//		{
-//			// Approximate contour, accuracy proportional to perimeter of contour; may want to tune accuracy.
-//			result = cvApproxPoly(contours, sizeof(CvContour), storage, CV_POLY_APPROX_DP, cvContourPerimeter(contours) * 0.02, 0);
-//			// Filter small contours and contours w/o 4 vertices (filters noise, finds rectangles)
-//			if (result->total == 4 && 
-//				fabs(cvContourArea(result, CV_WHOLE_SEQ)) > 600 && 
-//				cvCheckContourConvexity(result))
-//			{
-//				// Skipped checking whether angles were close to 90 degrees here; may want to implement.
-//				// Probably also want to check if it's square enough to filter out ex. long windows.
-//
-//				for (int i = 0; i < 4; i++)
-//				{
-//					// Write vertices to output sequence
-//					cvSeqPush(squares, (CvPoint*)cvGetSeqElem(result, i));
-//				}
-//			}
-//
-//			// Take next contour
-//			contours = contours->h_next;
-//		}
-//
-//
-//		// DRAW RECTANGLES
-//		CvSeqReader reader;
-//		cvStartReadSeq(squares, &reader, 0);
-//
-//		// Read 4 points at a time
-//		CvPoint pt[4];
-//		CvPoint *rect = pt;
-//		CvRect out[4];
-//		CvRect *outrect = out;
-//		for (int i = 0; i < squares->total; i += 4)
-//		{
-//			int count = 4;
-//			
-//			// Which point is which corner is unpredictable.
-//			CV_READ_SEQ_ELEM(pt[0], reader); 
-//			CV_READ_SEQ_ELEM(pt[1], reader);
-//			CV_READ_SEQ_ELEM(pt[2], reader);
-//			CV_READ_SEQ_ELEM(pt[3], reader);
-//			// Draw rectangle on output
-//			cvPolyLine(outimg, &rect, &count, 1, 1, CV_RGB(0,255,0), 1, CV_AA, 0);
-//		}
-
-		// Print on order
 		if( cvWaitKey( 15 )==27 )
 		{
 			// Empty for now.
