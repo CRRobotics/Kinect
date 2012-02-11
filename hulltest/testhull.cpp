@@ -47,6 +47,7 @@ public:
 	int dist;
 	PolyVertices();
 	void invalidate();
+	bool isValid();
 };
 
 PolyVertices::PolyVertices()
@@ -63,6 +64,11 @@ PolyVertices::PolyVertices()
 void PolyVertices::invalidate()
 {
 	center.x = center.y = 0;
+}
+
+bool PolyVertices::isValid()
+{
+	return (center.x != 0 && center.y != 0);
 }
 
 bool operator== (const PolyVertices& arg1, const PolyVertices& arg2)
@@ -172,10 +178,8 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	ugly:
 	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
 	{
-		printf("Filter\n");
 		if (FilterSub(list, *p))
 		{
-			printf("Delete\n");
 			fflush(stdout);
 			list.erase(p);
 			goto ugly;
@@ -188,9 +192,14 @@ void FilterInnerRects(vector<PolyVertices> &list)
 // shouldn't be too much of an issue.
 void SortRects(vector<PolyVertices> &list)
 {
-	printf("Enter SortRects; list.size = %d\n", list.size());
 	if (list.size() < 1)
 		return;
+	
+	for (int i = list.size(); i < 4; i++)
+	{
+		PolyVertices temp;
+		list.push_back(temp);
+	}
 
 	PolyVertices top, left, right, bottom;
 	top = left = right = bottom = list[0];
@@ -285,7 +294,10 @@ void SortRects(vector<PolyVertices> &list)
 			}
 		}
 	}
-	printf("Exit SortRects\n");
+	for (int i = 0; i < 4; i++)
+	{
+		printf("[0]: (%d, %d)", list[i].center.x, list[i].center.y);
+	}
 }
 
 
@@ -318,7 +330,6 @@ void *cv_threadfunc (void *ptr) {
 	// Main loop
 	while (1) 
 	{
-		printf("Enter main loop\n");
 		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage ); // Sequence to run ApproxPoly on
 		CvSeq* contours; // Raw contours list
 		CvSeq* hull; // Current convex hull
@@ -336,10 +347,10 @@ void *cv_threadfunc (void *ptr) {
 		cvErode(timg, timg, element, 1);
 
 		/* THRESHOLD TEST */
-		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
+		cvThreshold(timg, timg, 200, 255, CV_THRESH_BINARY);
 
 		/* Output processed or raw image. */
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
+		cvCvtColor(timg, outimg, CV_GRAY2BGR);
 
 		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
@@ -351,11 +362,8 @@ void *cv_threadfunc (void *ptr) {
 
 		while (contours)
 		{
-			printf("Enter contours loop\n");
-			printf("contours size: %d", contours->total);
 			// List of raw rectangles
 			PolyVertices fullrect;
-			printf("fullrect created\n");
 
 			// Filter noise
 			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 600)
@@ -389,46 +397,38 @@ void *cv_threadfunc (void *ptr) {
 			}
 			cvClearSeq(polyseq);
 			contours = contours->h_next;
-			printf("Exit contours loop\n");
 		}
 
 		/* FILTER OVERLAPPING RECTANGLES */
 		FilterInnerRects(rectangleList);
 		SortRects(rectangleList);
+		RobotMath robot;
 
 		if (outimg)
 		{
 			for (int i = 0; i < rectangleList.size(); i++)
 			{
-				cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+				if (rectangleList[i].isValid())
+				{
+					cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
+					cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
+					cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
+					cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+					robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+					robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+				}
 			}
 		}
 
 		/* ADD MATH/SENDING FOR rectangleList HERE */
-
-		RobotMath robot;
-		printf("Start math\n");
-		for (int i = 0; i < rectangleList.size(); i++)
-		{
-			robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
-			robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
-		}
-		printf("End math\n");
 
 		if( cvWaitKey( 15 )==27 )
 		{
 			// Empty for now.
 		}
 		
-		printf("cvShowImage\n");
 		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
-		printf("cvClearMemStorage\n");
 		cvClearMemStorage(storage);
-		
-		printf("End main loop\n");
 	}
 	pthread_exit(NULL);
 }
