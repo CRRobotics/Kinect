@@ -76,6 +76,7 @@ IplImage* tempimg = 0;
 pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
 pthread_t cv_thread;
 
+// Network socket
 int CRRsocket;
 
 
@@ -157,29 +158,34 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 // 			poly->points[2]->x,poly->points[2]->y,poly->points[3]->x,poly->points[3]->y);
 }
 
-// Return whether we want to delete poly.
+// Return whether we want to delete poly. Subroutine of FilterInnerRects.
 bool FilterSub(vector<PolyVertices> &list, PolyVertices poly)
 {
 	for (int i = 0; i < list.size(); i++)
 	{
-		double result = sqrt(pow((double)list[i].center.x - (double)poly.center.x, 2) + pow((double)list[i].center.y - (double)poly.center.y, 2));
-		if ((result < 50) && (list[i].dist != poly.dist))
+		double result = pow((double)list[i].center.x - (double)poly.center.x, 2) + pow((double)list[i].center.y - (double)poly.center.y, 2);
+		if ((result < 50 * 50) && (list[i].dist != poly.dist))
 			if (list[i].dist > poly.dist)
 				return true;
 	}
 	return false;
 }
 
+// Remove rectangles enclosed by others.
+// Has also been co-opted to filter out rectangles with odd angles, i.e. not targets.
 void FilterInnerRects(vector<PolyVertices> &list)
 {
-	ugly:
-	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
+	vector<PolyVertices>::iterator p = list.begin();
+	while (p < list.end()) 
 	{
 		if (FilterSub(list, *p))
 		{
 			fflush(stdout);
-			list.erase(p);
-			goto ugly;
+			p = list.erase(p);
+		}
+		else
+		{
+			++p;
 		}
 	}
 }
@@ -416,35 +422,24 @@ void *cv_threadfunc (void *ptr) {
 		TrackingData outgoing;
 		memset(&outgoing, 0, sizeof(TrackingData));
 
-		// Packet fields are unsigned 16bit integers, so we need to scale them up
-		if (rectangleList[0].isValid())
+		for (int i = 0; i < 4; i++)
 		{
-			outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
-			outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
+			// Fill packets
+			// Packet fields are unsigned 16bit integers, so we need to scale them up
+			if (rectangleList[i].isValid())
+			{
+				outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+				outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+			}
+			// Draw filtered rects
+			if (outimg && rectangleList[i].isValid())
+			{
+				cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
+				cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
+				cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
+				cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+			}
 		}
-// 		if (rectangleList[1].isValid())
-//		{
-//			outgoing.distLeft = robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
-//			outgoing.angleLeft = robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
-//		}
-//		if (rectangleList[2].isValid())
-//		{
-//			outgoing.distRight = robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
-//			outgoing.angleRight = robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
-//		}
-//		if (rectangleList[3].isValid())
-//		{
-//			outgoing.distLow = robot.GetDistance(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
-//			outgoing.angleLow = robot.GetAngle(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
-//		}
-
-		// if (outimg)
-		// {
-		// 	cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
-		// 	cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
-		// 	cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
-		// 	cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
-		// }
 
 		printf("Top distance: %d\n", outgoing.distHigh);
 		printf("Top angle: %d\n\n", outgoing.angleHigh);

@@ -3,7 +3,7 @@ using namespace std;
 
 RobotMath::RobotMath()
 {
-	// Empty
+	// Emptyasdf
 }
 
 double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
@@ -56,6 +56,7 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 }
 
 // Should be doable with only viewpicture info and nothing from GetDistance.
+// Returns angle offset from center of screen in degrees.
 // POSITIVE ANGLE IS TURN CLOCKWISE
 double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 {

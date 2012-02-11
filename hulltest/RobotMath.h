@@ -27,7 +27,7 @@ private:
 	static const double k_zerox = 589.366;
 
 	// Angle above horizontal
-	static const double k_cameraoffset = 0.22411;
+	static const double k_cameraoffset = 0.3187475;
 
 	// Apparent angles to left and right points from camera horizontal zero line
 	// Actually useless placeholders at the moment.
@@ -65,7 +65,7 @@ private:
 	// Angle correction to point at reflection of basket
 	double angle_reflect_correction;
 
-	// Angle offset between robot facing and reflected basket
+	// Angle offset between robot facing and reflected basket, in degrees.
 	double angle_output;
 };
 #endif
