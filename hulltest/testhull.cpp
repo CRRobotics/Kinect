@@ -416,11 +416,11 @@ void *cv_threadfunc (void *ptr) {
 		TrackingData outgoing;
 		memset(&outgoing, 0, sizeof(TrackingData));
 
-		// Packet fields are unsigned 16bit integers, so we need to scale them up; 10x at the moment.
+		// Packet fields are unsigned 16bit integers, so we need to scale them up
 		if (rectangleList[0].isValid())
 		{
 			outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
-			outgoing.angleHigh = 1000 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
+			outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
 		}
 // 		if (rectangleList[1].isValid())
 //		{

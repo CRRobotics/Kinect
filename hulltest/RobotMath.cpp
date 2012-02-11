@@ -56,13 +56,17 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 }
 
 // Should be doable with only viewpicture info and nothing from GetDistance.
+// POSITIVE ANGLE IS TURN CLOCKWISE
 double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 {
 	printf("leftpt.x: %d\n", leftpt.x);
 	printf("rightpt.x: %d\n", rightpt.x);
 
-	angle_offset_left = atan((320 - leftpt.x) / k_zerox);
-	angle_offset_right = atan((320 - rightpt.x) / k_zerox);
+	angle_offset_left = atan((leftpt.x - 320) / k_zerox);
+	angle_offset_right = atan((rightpt.x - 320) / k_zerox);
+
+	printf("angle_offset_left: %f\n", angle_offset_left);
+	printf("angle_offset_right: %f\n", angle_offset_right);
 
 	angle_offset_mid = (angle_offset_left + angle_offset_right) / 2;
 
@@ -86,12 +90,16 @@ double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 	}
 	else if (dist_flat_left > dist_flat_right && angle_offset_mid > 0)
 	{
-		angle_output = angle_reflect_correction - angle_offset_mid;
+		angle_output = angle_offset_mid - angle_reflect_correction;
 	}
 	else // Shouldn't happen.
 	{
 		angle_output = angle_offset_mid;
 	}
 
+	// CONVERT TO DEGREES
+	angle_output = angle_output * 180 / PI;
+
+	printf("angle_output: %f\n", angle_output);
 	return angle_output; // As above.
 }
