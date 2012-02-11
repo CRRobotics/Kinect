@@ -3,26 +3,31 @@ using namespace std;
 
 RobotMath::RobotMath()
 {
-	// Empty
+	// Empt
 }
 
 // For now, robot needs to be on the left side of the field.
 double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 {
 	angle_elevation_left = atan((240 - leftpt.y) / k_zeroy) + k_cameraoffset;
-	angle_elevation_right = atan((240 - leftpt.y) / k_zeroy) + k_cameraoffset;
-
+	angle_elevation_right = atan((240 - rightpt.y) / k_zeroy) + k_cameraoffset;
+	
 	dist_flat_left = (k_diff_height * (cos(angle_elevation_left)) / sin(angle_elevation_left));
 	dist_flat_right = (k_diff_height * (cos(angle_elevation_right)) / sin(angle_elevation_right));
-
+	
 	if (dist_flat_left < dist_flat_right) // On left side of field
 	{
 		// acos may return negative
 		angle_transition_inner = acos((pow(k_bkbd_width, 2) + pow(dist_flat_left, 2) - pow(dist_flat_right, 2)) / (2 * k_bkbd_width * dist_flat_left));
-		angle_transition_outer = 180 - angle_transition_inner;
+		angle_transition_outer = PI - angle_transition_inner;
 
 		dist_bkbd_perpendicular = dist_flat_left * sin(angle_transition_outer);
+
+		printf("dist_bkbd_perpendicular: %f\n", dist_bkbd_perpendicular);
+
 		dist_perpendicular_to_center = ((dist_bkbd_perpendicular * sin(angle_transition_outer)) / cos(angle_transition_outer)) + (k_bkbd_width / 2);
+
+		printf("dist_perpendicular_to_center: %f\n", dist_perpendicular_to_center);
 
 		dist_reflect_perpendicular = dist_bkbd_perpendicular + 1.25;
 
@@ -33,10 +38,17 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 	else if (dist_flat_left > dist_flat_right) // On right side of field
 	{
 		angle_transition_inner = acos((pow(k_bkbd_width, 2) + pow(dist_flat_right, 2) - pow(dist_flat_left, 2)) / (2 * k_bkbd_width * dist_flat_right));
-		angle_transition_outer = 180 - angle_transition_inner;
+		angle_transition_outer = PI - angle_transition_inner;
+
+		printf("angle_transition_outer: %f\n", angle_transition_outer);
 
 		dist_bkbd_perpendicular = dist_flat_right * sin(angle_transition_outer);
+
+		printf("dist_bkbd_perpendicular: %f\n", dist_bkbd_perpendicular);
+
 		dist_perpendicular_to_center = ((dist_bkbd_perpendicular * sin(angle_transition_outer)) / cos(angle_transition_outer)) + (k_bkbd_width / 2);
+
+		printf("dist_perpendicular_to_center: %f\n", dist_perpendicular_to_center);
 
 		dist_reflect_perpendicular = dist_bkbd_perpendicular + 1.25;
 
@@ -48,6 +60,7 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 	{
 		dist_output = sqrt(pow(dist_flat_left, 2) - pow(k_bkbd_width / 2, 2)) + (15.0 / 12.0); // Dist. between bkbd and hoop center
 	}
+	return dist_output;
 }
 
 // Should be doable with only viewpicture info and nothing from GetDistance.
