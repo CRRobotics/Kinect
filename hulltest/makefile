@@ -2,7 +2,7 @@ CXXFLAGS =	-O2 -g -Wall -fmessage-length=0 `pkg-config opencv --cflags ` -I /usr
 
 
 
-OBJS =	testhull.o RobotMath.o
+OBJS =	testhull.o RobotMath.o beagleSender.o
 
 
 LIBS =	`pkg-config opencv --libs` -lfreenect -lblob

@@ -39,12 +39,36 @@ freenectopencv.cpp
 #define FREENECTOPENCV_RGB_WIDTH 640
 #define FREENECTOPENCV_RGB_HEIGHT 480
 
-typedef struct 
+class PolyVertices
 {
+public:
 	CvPoint* points[4];
 	CvPoint center; 
 	int dist;
-}PolyVertices;
+	PolyVertices();
+	void invalidate();
+};
+
+PolyVertices::PolyVertices()
+{
+	points[0] = NULL;
+	points[1] = NULL;
+	points[2] = NULL;
+	points[3] = NULL;
+	center.x = 0;
+	center.y = 0;
+	dist = 0;
+}
+
+void PolyVertices::invalidate()
+{
+	center.x = center.y = 0;
+}
+
+bool operator== (const PolyVertices& arg1, const PolyVertices& arg2)
+{
+	return (arg1.center.x == arg2.center.x && arg1.center.y == arg2.center.y);
+}
 
 IplImage* rgbimg = 0;
 IplImage* tempimg = 0;
@@ -159,71 +183,109 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	}
 }
 
+// The word "must" in the following function should be interpreted to mean "if we are not missing more than 
+// however many rectangles we think we are missing." There is really no provision for missing >1, but it 
+// shouldn't be too much of an issue.
 void SortRects(vector<PolyVertices> &list)
 {
-	PolyVertices *top, *left, *right, *bottom;
+	printf("Enter SortRects; list.size = %d\n", list.size());
+	if (list.size() < 1)
+		return;
+
+	PolyVertices top, left, right, bottom;
 	top = left = right = bottom = list[0];
 
+	// Fill the four spaces with prelim. data
 	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
 	{
-		if (*p.center.y < *top.center.y)
-			top = p;	
-		if (*p.center.y > *bottom.center.y)
-			bottom = p;
-		if (*p.center.x < *left.center.x)
-			left = p;
-		if (*p.center.x > *right.center.x)
-			right = p;
+		if ((*p).center.y < top.center.y)
+			top = *p;	
+		if ((*p).center.y > bottom.center.y)
+		        bottom = *p;
+		if ((*p).center.x < left.center.x)
+		        left = *p;
+		if ((*p).center.x > right.center.x)
+			right = *p;
 	}
 	
+	/* FIND WHICH RECTANGLE IS MISSING */ 
 	if (top == left || top == right)
 	{
-		if (abs(*top.x - *left.x) < 50)
+		// CASE: top and left are ambiguous
+		if (abs(top.center.x - left.center.x) < 50)
 		{
+			// right and bottom must be correct
 			list[2] = right;
 			list[3] = bottom;
+
+			if (abs(top.center.x - bottom.center.x) < 50) // both are top
+			{
+				list[0] = top;
+				list[1].invalidate();
+			}
+			else // both are left
+			{
+				list[0].invalidate();
+				list[1] = left;
+			}
 		}
-		else if (abs(*top.x - *right.x) < 50)
+		// CASE: top and right are ambiguous
+		else if (abs(top.center.x - right.center.x) < 50)
 		{
+			// left and bottom must be correct
 			list[1] = left;
 			list[3] = bottom;
+			
+			if (abs(top.center.x - bottom.center.x) < 50) // both are top
+			{
+				list[0] = top;
+				list[2].invalidate();
+			}
+			else // both are right
+			{
+				list[0].invalidate();
+				list[2] = right;
+			}
 		}
 
-		if (abs(*top.y - *bottom.y) < 50)
+		// CASE: bottom and left are ambiguous
+		if (abs(top.center.x - left.center.x) < 50)
 		{
+			// top and right must be correct
 			list[0] = top;
-			list[1] = NULL;
-		}
-		else
-		{
-			list[0] = NULL;
-			list[1] = top;
-		}
-	}
-
-	else if (bottom == left || bottom == right)
-	{
-		if (abs(*bottom.x - *left.x) < 50)
-		{
 			list[2] = right;
-			list[0] = top;
+
+			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
+			{
+				list[1].invalidate();
+				list[3] = bottom;
+			}
+			else // both are left
+			{
+				list[1] = left;
+				list[3].invalidate();
+			}
 		}
-		else if (abs(*bottom.x - *right.x) < 50)
+		// CASE: bottom and right are ambiguous
+		else if (abs(bottom.center.x - right.center.x) < 50)
 		{
-			list[1] = left;
+			// top and left must be correct
 			list[0] = top;
+			list[1] = left;
+			
+			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
+			{
+				list[2].invalidate();
+				list[3] = bottom;
+			}
+			else // both are right
+			{
+				list[2] = right;
+				list[3].invalidate();
+			}
 		}
-
-		if (abs(*bottom.y - *top.y) < 50)
-{
-	list[
-
 	}
-
-	list[0] = top;
-	list[1] = left;
-	list[2] = right;
-	list[3] = bottom;
+	printf("Exit SortRects\n");
 }
 
 
@@ -256,6 +318,7 @@ void *cv_threadfunc (void *ptr) {
 	// Main loop
 	while (1) 
 	{
+		printf("Enter main loop\n");
 		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage ); // Sequence to run ApproxPoly on
 		CvSeq* contours; // Raw contours list
 		CvSeq* hull; // Current convex hull
@@ -286,12 +349,13 @@ void *cv_threadfunc (void *ptr) {
 		CvPoint* draw2; // ''
 		vector<PolyVertices> rectangleList;
 
-		printf("\n\n");
 		while (contours)
 		{
+			printf("Enter contours loop\n");
+			printf("contours size: %d", contours->total);
 			// List of raw rectangles
 			PolyVertices fullrect;
-			memset((char*)&fullrect, 0, sizeof(PolyVertices));
+			printf("fullrect created\n");
 
 			// Filter noise
 			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 600)
@@ -325,6 +389,7 @@ void *cv_threadfunc (void *ptr) {
 			}
 			cvClearSeq(polyseq);
 			contours = contours->h_next;
+			printf("Exit contours loop\n");
 		}
 
 		/* FILTER OVERLAPPING RECTANGLES */
@@ -345,19 +410,25 @@ void *cv_threadfunc (void *ptr) {
 		/* ADD MATH/SENDING FOR rectangleList HERE */
 
 		RobotMath robot;
+		printf("Start math\n");
 		for (int i = 0; i < rectangleList.size(); i++)
 		{
 			robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
 			robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
 		}
+		printf("End math\n");
 
 		if( cvWaitKey( 15 )==27 )
 		{
 			// Empty for now.
 		}
-
+		
+		printf("cvShowImage\n");
 		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
+		printf("cvClearMemStorage\n");
 		cvClearMemStorage(storage);
+		
+		printf("End main loop\n");
 	}
 	pthread_exit(NULL);
 }
