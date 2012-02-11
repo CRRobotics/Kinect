@@ -27,7 +27,7 @@ private:
 	static const double k_zerox = 589.366;
 
 	// Angle above horizontal
-	static const double k_cameraoffset = 20 * PI / 180;
+	static const double k_cameraoffset = 0.22411;
 
 	// Apparent angles to left and right points from camera horizontal zero line
 	// Actually useless placeholders at the moment.

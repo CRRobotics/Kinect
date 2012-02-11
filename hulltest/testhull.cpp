@@ -354,7 +354,7 @@ void *cv_threadfunc (void *ptr) {
 		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
 		/* Output processed or raw image. */
-		cvCvtColor(timg, outimg, CV_GRAY2BGR);
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
@@ -441,11 +441,11 @@ void *cv_threadfunc (void *ptr) {
 		// 	cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
 		// }
 
-		/* SEND TO CRIO */
-		sendData(&outgoing, CRRsocket);
-
 		printf("Top distance: %d\n", outgoing.distHigh);
 		printf("Top angle: %d\n\n", outgoing.angleHigh);
+
+		/* SEND TO CRIO */
+		sendData(&outgoing, CRRsocket);
 
 		if( cvWaitKey( 15 )==27 )
 		{
