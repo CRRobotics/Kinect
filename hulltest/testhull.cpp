@@ -250,8 +250,11 @@ void SortRects(vector<PolyVertices> &list)
 // 				list[2] = right;
 // 			}
 // 		}
-// 
-// 		// CASE: bottom and left are ambiguous
+//	}	
+//
+//	if (bottom == left || bottom == right)
+//	{
+//		// CASE: bottom and left are ambiguous
 // 		if (abs(top.center.x - left.center.x) < 50)
 // 		{
 // 			// top and right must be correct
@@ -288,6 +291,7 @@ void SortRects(vector<PolyVertices> &list)
 // 			}
 // 		}
 // 	}
+//
 // 	for (int i = 0; i < 4; i++)
 // 	{
 // 		printf("[%d]: (%d, %d)\n", i, list[i].center.x, list[i].center.y);
@@ -412,10 +416,11 @@ void *cv_threadfunc (void *ptr) {
 		TrackingData outgoing;
 		memset(&outgoing, 0, sizeof(TrackingData));
 
+		// Packet fields are unsigned 16bit integers, so we need to scale them up; 10x at the moment.
 		if (rectangleList[0].isValid())
 		{
-			outgoing.distHigh = robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
-			outgoing.angleHigh = robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
+			outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
+			outgoing.angleHigh = 1000 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
 		}
 // 		if (rectangleList[1].isValid())
 //		{

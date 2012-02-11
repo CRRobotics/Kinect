@@ -6,7 +6,6 @@ RobotMath::RobotMath()
 	// Empty
 }
 
-// For now, robot needs to be on the left side of the field.
 double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 {
 	angle_elevation_left = atan((240 - leftpt.y) / k_zeroy) + k_cameraoffset;
@@ -48,7 +47,7 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 		printf("dist_output: %f\n", dist_output);
 		return dist_output; 
 	}
-	else if (dist_flat_left == dist_flat_right)
+	else if (dist_flat_left == dist_flat_right) // Will never happen, but catching middle line
 	{
 		dist_output = sqrt(pow(dist_flat_left, 2) - pow(k_bkbd_width / 2, 2)) + (15.0 / 12.0); // Dist. between bkbd and hoop center
 		printf("dist_output: %f\n", dist_output);
@@ -89,7 +88,7 @@ double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 	{
 		angle_output = angle_reflect_correction - angle_offset_mid;
 	}
-	else
+	else // Shouldn't happen.
 	{
 		angle_output = angle_offset_mid;
 	}
