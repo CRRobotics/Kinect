@@ -30,6 +30,8 @@ freenectopencv.cpp
 #include <cv.h>
 #include <highgui.h>
 
+#include "RobotMath.h"
+
 
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
 #define FREENECTOPENCV_RGB_DEPTH 3 // Currently used for tempImg.
@@ -272,6 +274,10 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 		/* ADD MATH/SENDING FOR rectangleList HERE */
+
+		RobotMath robot;
+		robot.GetDistance();
+		robot.GetAngle();
 
 		if( cvWaitKey( 15 )==27 )
 		{
