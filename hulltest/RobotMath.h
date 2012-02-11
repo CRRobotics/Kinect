@@ -9,20 +9,32 @@ class RobotMath
 {
 public:
 	RobotMath();
-	double GetDistance();
-	double GetAngle();
+	double GetDistance(CvPoint leftpt, CvPoint rightpt);
+	double GetAngle(CvPoint leftpt, CvPoint rightpt);
 private:
+	double elevLookup[90];
+
 	/* DISTANCE FINDING */
+	/* GIVEN */
 	// Diff. betwen camera  height and backboard height
-	double k_diff_height;
+	static const double k_diff_height = 31.0 / 12.0;
 
-	// One-half real distance between top left and top right points. Should be 1.5ft.
-	double k_bkbd_halfwidth;
+	// Real distance between top left and top right points. Should be 2ft.
+	static const double k_bkbd_width = 2.0;
 
-	// Apparent angles to left and right points from camera flatline
+	// Line on the viewpicture perpendicular to ground.
+	static const double k_zeroy = 609.275;
+	static const double k_zerox = 589.366;
+
+	// 
+	static const double k_cameraoffset = 0;
+
+	// Apparent angles to left and right points from camera horizontal zero line
+	// Actually useless placeholders at the moment.
 	double angle_elevation_left;
 	double angle_elevation_right;
 
+	/* CALCULATED */
 	// Flat-ground distance to ground under left/right points
 	double dist_flat_left;
 	double dist_flat_right;
@@ -45,11 +57,7 @@ private:
 
 
 	/* ANGLE FINDING */
-	// Placeholder variable for left/right points. Will be replaced with reference to input from hulltest.
-	CvPoint left;
-	CvPoint right;
-
-	// Apparent angle offset between camera center line and points on backboard
+	// Apparent angle offset between camera vertical center line and points on backboard
 	double angle_offset_left;
 	double angle_offset_right;
 	double angle_offset_mid;

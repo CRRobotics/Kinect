@@ -42,7 +42,7 @@ freenectopencv.cpp
 typedef struct 
 {
 	CvPoint* points[4];
-	CvPoint center;
+	CvPoint center; 
 	int dist;
 }PolyVertices;
 
@@ -52,7 +52,8 @@ pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
 pthread_t cv_thread;
 
 
-void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img ){
+void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
+{
 	// Sequence is the hull
 	// poly->points is the array that stores the points of the rectangle
 	// img is the image we are drawing lines and such on. Not strictly necessary.
@@ -69,7 +70,8 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img ){
 
 	CvSeqReader seqReader;
 	cvStartReadSeq(sequence, &seqReader, 0);
-	for(int i = 0; i < sequence->total; i++){
+	for(int i = 0; i < sequence->total; i++)
+	{
 		CvPoint* point = (CvPoint*) seqReader.ptr;
 
 		// printf("Center x, y: %d, %d\n", point->x, point->y); 
@@ -95,17 +97,18 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img ){
 
 	CvSeqReader seqReader2;
 	cvStartReadSeq(sequence, &seqReader2, 0);
-	for(int i = 0; i < sequence->total; i++){
+	for(int i = 0; i < sequence->total; i++)
+	{
 		CvPoint* point = (CvPoint*) seqReader2.ptr;
 		distance = pow((double)point->x - poly->center.x, 2) + pow((double)point->y - poly->center.y, 2);
 		qKey = ((point->x > poly->center.x ? 1 : 0) + (point->y < poly->center.y ? 2 : 0));
 
 		//printf("X: %d, Y: %d, Dist: %f, Key: %d\n ", point->x, point->y, distance, qKey);
 		/* FILL POINTS */
-		if(distance > distances[qKey]){
+		if(distance > distances[qKey])
+		{
 			poly->points[qKey] = point;
 			distances[qKey] = distance;
-
 		}
 		CV_NEXT_SEQ_ELEM(seqReader2.seq->elem_size, seqReader2);
 	}
@@ -154,6 +157,73 @@ void FilterInnerRects(vector<PolyVertices> &list)
 			goto ugly;
 		}
 	}
+}
+
+void SortRects(vector<PolyVertices> &list)
+{
+	PolyVertices *top, *left, *right, *bottom;
+	top = left = right = bottom = list[0];
+
+	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
+	{
+		if (*p.center.y < *top.center.y)
+			top = p;	
+		if (*p.center.y > *bottom.center.y)
+			bottom = p;
+		if (*p.center.x < *left.center.x)
+			left = p;
+		if (*p.center.x > *right.center.x)
+			right = p;
+	}
+	
+	if (top == left || top == right)
+	{
+		if (abs(*top.x - *left.x) < 50)
+		{
+			list[2] = right;
+			list[3] = bottom;
+		}
+		else if (abs(*top.x - *right.x) < 50)
+		{
+			list[1] = left;
+			list[3] = bottom;
+		}
+
+		if (abs(*top.y - *bottom.y) < 50)
+		{
+			list[0] = top;
+			list[1] = NULL;
+		}
+		else
+		{
+			list[0] = NULL;
+			list[1] = top;
+		}
+	}
+
+	else if (bottom == left || bottom == right)
+	{
+		if (abs(*bottom.x - *left.x) < 50)
+		{
+			list[2] = right;
+			list[0] = top;
+		}
+		else if (abs(*bottom.x - *right.x) < 50)
+		{
+			list[1] = left;
+			list[0] = top;
+		}
+
+		if (abs(*bottom.y - *top.y) < 50)
+{
+	list[
+
+	}
+
+	list[0] = top;
+	list[1] = left;
+	list[2] = right;
+	list[3] = bottom;
 }
 
 
@@ -258,9 +328,8 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 		/* FILTER OVERLAPPING RECTANGLES */
-		printf("RectangleList: %d\n", rectangleList.size());
 		FilterInnerRects(rectangleList);
-		printf("RectangleList: %d\n", rectangleList.size());
+		SortRects(rectangleList);
 
 		if (outimg)
 		{
@@ -276,8 +345,11 @@ void *cv_threadfunc (void *ptr) {
 		/* ADD MATH/SENDING FOR rectangleList HERE */
 
 		RobotMath robot;
-		robot.GetDistance();
-		robot.GetAngle();
+		for (int i = 0; i < rectangleList.size(); i++)
+		{
+			robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+			robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+		}
 
 		if( cvWaitKey( 15 )==27 )
 		{
