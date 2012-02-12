@@ -1,3 +1,5 @@
+//#define DEBUG
+#define DEBUG_S
 /*
 testhull.cpp
 
@@ -14,7 +16,7 @@ freenectopencv.cpp
 	see:
 	http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
 	http://www.gnu.org/licenses/gpl-3.0.txt
- */
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -85,7 +87,9 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	// Sequence is the hull.
 	// poly->points is the array that stores the points of the rectangle.
 	// img is the image we are drawing lines and such on. Not strictly necessary.
+	#ifdef DEBUG
 	printf("Sequence: %d\n", sequence->total);
+	#endif
 
 	/*CALCULATE CENTER*/
 	// int center[2] = {0}; //center point of the poly x, y
@@ -102,8 +106,6 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	{
 		CvPoint* point = (CvPoint*) seqReader.ptr;
 
-		// printf("Center x, y: %d, %d\n", point->x, point->y); 
-
 		if(point->x < extremes[0]) extremes[0] = point->x;
 		if(point->x > extremes[1]) extremes[1] = point->x;
 
@@ -115,7 +117,9 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	poly->center.y = (extremes[2] + extremes[3])/2;
 
 	cvCircle( img, poly->center, 2, CV_RGB(255,0,255), -1, 8, 0 );
+	#ifdef DEBUG
 	printf("Calculated Center (%d): %i, %i\n", sequence->total, poly->center.x, poly->center.y);
+	#endif
 
 	/*CALCULATE DISTANCES FROM CENTER AND CALCULATE MAX DIST IN EACH QUADRANT*/
 	double distances[4] = {0, 0, 0, 0};
@@ -131,7 +135,6 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 		distance = pow((double)point->x - poly->center.x, 2) + pow((double)point->y - poly->center.y, 2);
 		qKey = ((point->x > poly->center.x ? 1 : 0) + (point->y < poly->center.y ? 2 : 0));
 
-		//printf("X: %d, Y: %d, Dist: %f, Key: %d\n ", point->x, point->y, distance, qKey);
 		/* FILL POINTS */
 		if(distance > distances[qKey])
 		{
@@ -145,7 +148,10 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	{
 		/* FILL poly->dist */
 		poly->dist = pow((double)poly->points[0]->x - poly->center.x, 2) + pow((double)poly->points[0]->y - poly->center.y, 2);
-		printf("Dist0: %d\n", poly->dist);
+
+		#ifdef DEBUG
+		printf("Dist to 0: %d\n", poly->dist);
+		#endif
 
 		// Draw vertices
 		cvCircle( img, *poly->points[0], 4, CV_RGB(255,0,255), -1, 8, 0 );
@@ -153,9 +159,6 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 		cvCircle( img, *poly->points[2], 4, CV_RGB(255,0,255), -1, 8, 0 );
 		cvCircle( img, *poly->points[3], 4, CV_RGB(255,0,255), -1, 8, 0 );
 	}
-// 	printf("Vertices returned:  (%d,%d),(%d,%d),(%d,%d),(%d,%d)\n",
-// 			poly->points[0]->x,poly->points[0]->y,poly->points[1]->x,poly->points[1]->y,
-// 			poly->points[2]->x,poly->points[2]->y,poly->points[3]->x,poly->points[3]->y);
 }
 
 // Return whether we want to delete poly. Subroutine of FilterInnerRects.
@@ -195,6 +198,10 @@ void FilterInnerRects(vector<PolyVertices> &list)
 // shouldn't be too much of an issue.
 void SortRects(vector<PolyVertices> &list)
 {
+	// Fill with invalid structs to ensure no segfaults.
+	#ifdef DEBUG_S
+	printf("Empty structs pushed: %d\n", 4 - list.size());
+	#endif
 	for (int i = list.size(); i < 4; i++)
 	{
 		PolyVertices temp;
@@ -203,112 +210,154 @@ void SortRects(vector<PolyVertices> &list)
 
 	PolyVertices top, left, right, bottom;
 	top = left = right = bottom = list[0];
+	#ifdef DEBUG_S
+	printf("list[0].center: (%d, %d)\n", list[0].center.x, list[0].center.y);
+	#endif
 
 	// Fill the four spaces with prelim. data
 	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
 	{
-		if ((*p).center.y < top.center.y)
-			top = *p;	
-		if ((*p).center.y > bottom.center.y)
-		        bottom = *p;
-		if ((*p).center.x < left.center.x)
-		        left = *p;
-		if ((*p).center.x > right.center.x)
-			right = *p;
+		#ifdef DEBUG_S
+		printf("(*p).center: (%d, %d)\n", (*p).center.x, (*p).center.y);
+		#endif
+		if ((*p).isValid())
+		{
+			if ((*p).center.y < top.center.y)
+			{
+				top = *p;	
+				#ifdef DEBUG_S
+				printf("Top replaced\n");
+				#endif
+			}
+			if ((*p).center.y > bottom.center.y)
+			{
+				bottom = *p;
+				#ifdef DEBUG_S
+				printf("Bottom replaced\n");
+				#endif
+			}
+			if ((*p).center.x < left.center.x)
+			{
+				left = *p;
+				#ifdef DEBUG_S
+				printf("Left replaced\n");
+				#endif
+			}
+			if ((*p).center.x > right.center.x)
+			{
+				right = *p;
+				#ifdef DEBUG_S
+				printf("Right replaced\n");
+				#endif
+			}
+		}
 	}
 	
-// 	/* FIND WHICH RECTANGLE IS MISSING */ 
-// 	if (top == left || top == right)
-// 	{
-// 		// CASE: top and left are ambiguous
-// 		if (abs(top.center.x - left.center.x) < 50)
-// 		{
-// 			// right and bottom must be correct
-// 			list[2] = right;
-// 			list[3] = bottom;
-// 
-// 			if (abs(top.center.x - bottom.center.x) < 50) // both are top
-// 			{
-// 				list[0] = top;
-// 				list[1].invalidate();
-// 			}
-// 			else // both are left
-// 			{
-// 				list[0].invalidate();
-// 				list[1] = left;
-// 			}
-// 		}
-// 		// CASE: top and right are ambiguous
-// 		else if (abs(top.center.x - right.center.x) < 50)
-// 		{
-// 			// left and bottom must be correct
-// 			list[1] = left;
-// 			list[3] = bottom;
-// 			
-// 			if (abs(top.center.x - bottom.center.x) < 50) // both are top
-// 			{
-// 				list[0] = top;
-// 				list[2].invalidate();
-// 			}
-// 			else // both are right
-// 			{
-// 				list[0].invalidate();
-// 				list[2] = right;
-// 			}
-// 		}
-//	}	
-//
-//	if (bottom == left || bottom == right)
-//	{
-//		// CASE: bottom and left are ambiguous
-// 		if (abs(top.center.x - left.center.x) < 50)
-// 		{
-// 			// top and right must be correct
-// 			list[0] = top;
-// 			list[2] = right;
-// 
-// 			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
-// 			{
-// 				list[1].invalidate();
-// 				list[3] = bottom;
-// 			}
-// 			else // both are left
-// 			{
-// 				list[1] = left;
-// 				list[3].invalidate();
-// 			}
-// 		}
-// 		// CASE: bottom and right are ambiguous
-// 		else if (abs(bottom.center.x - right.center.x) < 50)
-// 		{
-// 			// top and left must be correct
-// 			list[0] = top;
-// 			list[1] = left;
-// 			
-// 			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
-// 			{
-// 				list[2].invalidate();
-// 				list[3] = bottom;
-// 			}
-// 			else // both are right
-// 			{
-// 				list[2] = right;
-// 				list[3].invalidate();
-// 			}
-// 		}
-// 	}
-//
-// 	for (int i = 0; i < 4; i++)
-// 	{
-// 		printf("[%d]: (%d, %d)\n", i, list[i].center.x, list[i].center.y);
-// 	}
+ 	/* FIND WHICH RECTANGLE IS MISSING */ 
+ 	if (top == left || top == right)
+ 	{
+		#ifdef DEBUG_S
+		printf("Outer: Top/Left or Top/Right\n");
+		#endif
+ 		// CASE: top and left are ambiguous
+ 		if (abs(top.center.x - left.center.x) < 50)
+ 		{
+			#ifdef DEBUG_S
+			printf("Top/Left unresolved\n");
+			#endif
+ 			// right and bottom must be correct
+ 			list[2] = right;
+ 			list[3] = bottom;
+ 
+ 			if (abs(top.center.x - bottom.center.x) < 50) // both are top
+ 			{
+ 				list[0] = top;
+ 				list[1].invalidate();
+ 			}
+ 			else // both are left
+ 			{
+ 				list[0].invalidate();
+ 				list[1] = left;
+ 			}
+ 		}
+ 		// CASE: top and right are ambiguous
+ 		else if (abs(top.center.x - right.center.x) < 50)
+ 		{
+			#ifdef DEBUG_S
+			printf("Top/Right unresolved\n");
+			#endif
+ 			// left and bottom must be correct
+ 			list[1] = left;
+ 			list[3] = bottom;
+ 			
+ 			if (abs(top.center.x - bottom.center.x) < 50) // both are top
+ 			{
+ 				list[0] = top;
+ 				list[2].invalidate();
+ 			}
+ 			else // both are right
+ 			{
+ 				list[0].invalidate();
+ 				list[2] = right;
+ 			}
+ 		}
+	}	
 
- 	printf("[0]: (%d, %d)\n", top.center.x, top.center.y);
- 	printf("[1]: (%d, %d)\n", left.center.x, left.center.y);
- 	printf("[2]: (%d, %d)\n", right.center.x, right.center.y);
- 	printf("[3]: (%d, %d)\n", bottom.center.x, bottom.center.y);
+	if (bottom == left || bottom == right)
+	{
+		#ifdef DEBUG_S
+		printf("Outer: Bottom/Left or Bottom/Right\n");
+		#endif
+		// CASE: bottom and left are ambiguous
+ 		if (abs(bottom.center.x - left.center.x) < 50)
+ 		{
+			#ifdef DEBUG_S
+			printf("Bottom/Left unresolved\n");
+			#endif
+ 			// top and right must be correct
+ 			list[0] = top;
+ 			list[2] = right;
+ 
+ 			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
+ 			{
+ 				list[1].invalidate();
+ 				list[3] = bottom;
+ 			}
+ 			else // both are left
+ 			{
+ 				list[1] = left;
+ 				list[3].invalidate();
+ 			}
+ 		}
+ 		// CASE: bottom and right are ambiguous
+ 		else if (abs(bottom.center.x - right.center.x) < 50)
+ 		{
+			#ifdef DEBUG_S
+			printf("Bottom/Right unresolved\n");
+			#endif
+ 			// top and left must be correct
+ 			list[0] = top;
+ 			list[1] = left;
+ 			
+ 			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
+ 			{
+ 				list[2].invalidate();
+ 				list[3] = bottom;
+ 			}
+ 			else // both are right
+ 			{
+ 				list[2] = right;
+ 				list[3].invalidate();
+ 			}
+ 		}
+ 	}
 
-	list[0] = top;
+	#ifdef DEBUG_S
+ 	for (int i = 0; i < 4; i++)
+ 	{
+ 		printf("[%d]: (%d, %d)\n", i, list[i].center.x, list[i].center.y);
+ 	}
+	#endif
 }
 
 
@@ -395,17 +444,19 @@ void *cv_threadfunc (void *ptr) {
 					// cvCircle( outimg, *draw2, 4, CV_RGB(0,100,150), -1, 8, 0 );
  				}
 
-				// Draw polygon
+				// Convert polys to rectangles, fill list
 				polyToQuad(hull, &fullrect, outimg);
 				if(!(fullrect.points[0] == NULL || fullrect.points[1] == NULL || fullrect.points[2] == NULL || fullrect.points[3] == NULL))
 				{
 					/* FILL rectangleList */
 					rectangleList.push_back(fullrect);
 
+					#ifdef DEBUG
 					printf("RESULT: (%d,%d), (%d,%d), (%d,%d), (%d,%d)\n",
 					fullrect.points[0]->x, fullrect.points[0]->y, fullrect.points[1]->x, fullrect.points[1]->y,
 						fullrect.points[2]->x, fullrect.points[2]->y, fullrect.points[3]->x, fullrect.points[3]->y);
 					fflush(stdout);
+					#endif
 				}
 
 			}
@@ -441,8 +492,10 @@ void *cv_threadfunc (void *ptr) {
 			}
 		}
 
+		#ifdef DEBUG
 		printf("Top distance: %d\n", outgoing.distHigh);
 		printf("Top angle: %d\n\n", outgoing.angleHigh);
+		#endif
 
 		/* SEND TO CRIO */
 		sendData(&outgoing, CRRsocket);
@@ -467,7 +520,7 @@ int main(int argc, char **argv)
 
 	int res = 0;
 	int die = 0;
-	printf("Kinect camera test\n");
+	printf("Code Red Kinect Vision init\n");
 
 	if (freenect_init(&f_ctx, NULL) < 0) {
 		printf("freenect_init() failed\n");
