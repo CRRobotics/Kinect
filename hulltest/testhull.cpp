@@ -89,6 +89,9 @@ pthread_t cv_thread;
 // Network socket
 int CRRsocket;
 
+// Display images?
+bool display;
+
 
 /*
  * Converts n-gons to 4-gons.
@@ -104,7 +107,6 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	#endif
 
 	/*CALCULATE CENTER*/
-	// int center[2] = {0}; //center point of the poly x, y
 	int extremes[4]; //minX, maxX, minY, maxY
 	extremes[0] = ((CvPoint*)cvGetSeqElem(sequence, 0))->x;
 	extremes[1] = extremes[0];
@@ -128,7 +130,10 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	poly->center.x = (extremes[0] + extremes[1])/2;
 	poly->center.y = (extremes[2] + extremes[3])/2;
 
-	cvCircle( img, poly->center, 2, CV_RGB(255,0,255), -1, 8, 0 );
+	if (display) {
+		cvCircle( img, poly->center, 2, CV_RGB(255,0,255), -1, 8, 0 );
+	}
+
 	#ifdef DEBUG_POLY
 	printf("Calculated Center (%d): %i, %i\n", sequence->total, poly->center.x, poly->center.y);
 	#endif
@@ -166,10 +171,12 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 		#endif
 
 		// Draw vertices (purple circles)
-		cvCircle( img, *poly->points[0], 3, CV_RGB(255,0,255), -1, 8, 0 );
-		cvCircle( img, *poly->points[1], 3, CV_RGB(255,0,255), -1, 8, 0 );
-		cvCircle( img, *poly->points[2], 3, CV_RGB(255,0,255), -1, 8, 0 );
-		cvCircle( img, *poly->points[3], 3, CV_RGB(255,0,255), -1, 8, 0 );
+		if (display) {
+			cvCircle( img, *poly->points[0], 3, CV_RGB(255,0,255), -1, 8, 0 );
+			cvCircle( img, *poly->points[1], 3, CV_RGB(255,0,255), -1, 8, 0 );
+			cvCircle( img, *poly->points[2], 3, CV_RGB(255,0,255), -1, 8, 0 );
+			cvCircle( img, *poly->points[3], 3, CV_RGB(255,0,255), -1, 8, 0 );
+		}
 	}
 }
 
@@ -209,6 +216,7 @@ void SortRects(vector<PolyVertices> &list)
 	#ifdef DEBUG_SORT
 	printf("Empty structs pushed: %d\n", 4 - list.size());
 	#endif
+
 	for (int i = list.size(); i < 4; i++)
 	{
 		PolyVertices temp;
@@ -315,7 +323,7 @@ void SortRects(vector<PolyVertices> &list)
  		}
  	}
 
-	else
+	else // none missing.
 	{
 		list[0] = top;
 		list[1] = left;
@@ -356,7 +364,7 @@ void *cv_threadfunc (void *ptr) {
 
 	// Set region of interest
 	cvSetImageROI(timg, cvRect(0, 0, sz.width, sz.height));
-	cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height));
+	if (display) { cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height)); }
 
 	// Open network socket.
 	CRRsocket = openSocket();
@@ -375,7 +383,7 @@ void *cv_threadfunc (void *ptr) {
 
 		/* PULL RAW IMAGE FROM KINECT */
 		pthread_mutex_lock( &mutex_rgb );
-		cvCopy(rgbimg, dimg, 0);
+		if (display) { cvCopy(rgbimg, dimg, 0); }
 		cvCopy(rgbimg, timg, 0);
 		pthread_mutex_unlock( &mutex_rgb );
 
@@ -389,7 +397,7 @@ void *cv_threadfunc (void *ptr) {
 		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
 		/* OUTPUT PROCESSED OR RAW IMAGE (FindContours destroys image) */
-		cvCvtColor(timg, outimg, CV_GRAY2BGR);
+		if (display) { cvCvtColor(dimg, outimg, CV_GRAY2BGR); }
 
 		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
@@ -413,13 +421,15 @@ void *cv_threadfunc (void *ptr) {
 				hullcount = hull->total;
 
 				// Draw hull (red line)
- 				draw1 = (CvPoint*)cvGetSeqElem(hull, hullcount - 1);
- 				for (int i = 0; i < hullcount; i++)
- 				{
- 					draw2 = (CvPoint*)cvGetSeqElem( hull, i );
- 					cvLine( outimg, *draw1, *draw2, CV_RGB(255,0,0), 1, 8, 0 );
- 					draw1 = draw2;
- 				}
+				if (display) {
+					draw1 = (CvPoint*)cvGetSeqElem(hull, hullcount - 1);
+					for (int i = 0; i < hullcount; i++)
+					{
+						draw2 = (CvPoint*)cvGetSeqElem( hull, i );
+						cvLine( outimg, *draw1, *draw2, CV_RGB(255,0,0), 1, 8, 0 );
+						draw1 = draw2;
+					}
+				}
 
 				// Convert polys from convex hull to rectangles, fill list
 				polyToQuad(hull, &fullrect, outimg);
@@ -486,14 +496,16 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 		// Draw filtered rects (thick blue line)
-		for (int i = 0; i < 4; i++)
-		{
-			if (outimg && rectangleList[i].isValid())
+		if (display) {
+			for (int i = 0; i < 4; i++)
 			{
-				cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+				if (outimg && rectangleList[i].isValid())
+				{
+					cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
+					cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
+					cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
+					cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+				}
 			}
 		}
 
@@ -501,6 +513,10 @@ void *cv_threadfunc (void *ptr) {
 		printf("Top distance: %d\n", outgoing.distHigh);
 		printf("Top angle: %d\n\n", outgoing.angleHigh);
 		#endif
+
+		CvPoint cent1 = cvPoint(320, 0);
+		CvPoint cent2 = cvPoint(320, 480);
+ 		if (display) { cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 ); }
 
 		/* SEND TO CRIO */
 		sendData(&outgoing, CRRsocket);
@@ -511,7 +527,7 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 		/* DISPLAY */
-		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
+		if (display) { cvShowImage (FREENECTOPENCV_WINDOW_N,outimg); }
 		
 		/* CLEANUP */
 		cvClearMemStorage(storage);
@@ -528,11 +544,16 @@ int main(int argc, char **argv)
 	freenect_context *f_ctx;
 	freenect_device *f_dev;
 
+	display = 0;
 
 	int res = 0;
 	int die = 0;
 	printf("Code Red Kinect Vision init\n");
 
+	if (argc > 1 && strcmp(argv[1],"--display") == 0) {
+		display = 1;
+	}
+			
 	if (freenect_init(&f_ctx, NULL) < 0) {
 		printf("freenect_init() failed\n");
 		return 1;
@@ -544,7 +565,7 @@ int main(int argc, char **argv)
 	}
 
 
-	cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
+	if (display) { cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE ); }
 	rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_IR_DEPTH);
 	tempimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_RGB_DEPTH);
 
