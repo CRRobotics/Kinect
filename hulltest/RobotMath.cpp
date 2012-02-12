@@ -16,6 +16,10 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt, int basket)
 
 	angle_elevation_left = atan((240 - leftpt.y) / k_zeroy) + k_cameraoffset;
 	angle_elevation_right = atan((240 - rightpt.y) / k_zeroy) + k_cameraoffset;
+	#ifdef DEBUG
+	printf("leftpt.y: %d\n", leftpt.y);
+	printf("rightpt.y: %d\n", rightpt.y);
+	#endif
 	
 	dist_flat_left = (k_diff_height[basket] * (cos(angle_elevation_left)) / sin(angle_elevation_left));
 	dist_flat_right = (k_diff_height[basket] * (cos(angle_elevation_right)) / sin(angle_elevation_right));
@@ -54,7 +58,7 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt, int basket)
 	}
 
 	#ifdef DEBUG
-	printf("dist_output: %f\n", dist_output);
+	printf("dist_output: %f\n\n", dist_output);
 	#endif
 
 	return dist_output; // Yes, we could just access the variable, but this is cleaner
@@ -103,7 +107,7 @@ double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 	printf("angle_offset_right: %f\n", angle_offset_right);
 	printf("angle_offset_mid: %f\n", angle_offset_mid);
 	printf("angle_reflect_correction: %f\n", angle_reflect_correction);
-	printf("angle_output: %f\n", angle_output);
+	printf("angle_output: %f\n\n", angle_output);
 	#endif
 
 	return angle_output; // As above.

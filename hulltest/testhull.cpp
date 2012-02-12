@@ -1,5 +1,7 @@
-//#define DEBUG
-#define DEBUG_S
+//#define DEBUG_MAIN
+//#define DEBUG_SORT
+//#define DEBUG_POLY
+
 /*
 testhull.cpp
 
@@ -97,7 +99,7 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	// Sequence is the hull.
 	// poly->points is the array that stores the points of the rectangle.
 	// img is the image we are drawing lines and such on. Not strictly necessary.
-	#ifdef DEBUG
+	#ifdef DEBUG_POLY
 	printf("Sequence: %d\n", sequence->total);
 	#endif
 
@@ -127,7 +129,7 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 	poly->center.y = (extremes[2] + extremes[3])/2;
 
 	cvCircle( img, poly->center, 2, CV_RGB(255,0,255), -1, 8, 0 );
-	#ifdef DEBUG
+	#ifdef DEBUG_POLY
 	printf("Calculated Center (%d): %i, %i\n", sequence->total, poly->center.x, poly->center.y);
 	#endif
 
@@ -159,7 +161,7 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 		/* FILL poly->dist */
 		poly->dist = pow((double)poly->points[0]->x - poly->center.x, 2) + pow((double)poly->points[0]->y - poly->center.y, 2);
 
-		#ifdef DEBUG
+		#ifdef DEBUG_POLY
 		printf("Dist to 0: %d\n", poly->dist);
 		#endif
 
@@ -191,13 +193,9 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	while (p < list.end()) 
 	{
 		if (FilterSub(list, *p))
-		{
 			p = list.erase(p);
-		}
 		else
-		{
 			++p;
-		}
 	}
 }
 
@@ -208,7 +206,7 @@ void SortRects(vector<PolyVertices> &list)
 {
 	// Fill with invalid structs to ensure no segfaults.
 	// TODO: if we decide that missing >1 is not worth coding, we could return here if 4 - list.size() is >1.
-	#ifdef DEBUG_S
+	#ifdef DEBUG_SORT
 	printf("Empty structs pushed: %d\n", 4 - list.size());
 	#endif
 	for (int i = list.size(); i < 4; i++)
@@ -277,7 +275,7 @@ void SortRects(vector<PolyVertices> &list)
  		}
 	}	
 
-	if (bottom == left || bottom == right)
+	else if (bottom == left || bottom == right)
 	{
 		// CASE: bottom and left are ambiguous
  		if (abs(bottom.center.x - left.center.x) < 50)
@@ -317,7 +315,15 @@ void SortRects(vector<PolyVertices> &list)
  		}
  	}
 
-	#ifdef DEBUG_S
+	else
+	{
+		list[0] = top;
+		list[1] = left;
+		list[2] = right;
+		list[3] = bottom;
+	}
+
+	#ifdef DEBUG_SORT
  	for (int i = 0; i < 4; i++)
  	{
  		printf("[%d]: (%d, %d)\n", i, list[i].center.x, list[i].center.y);
@@ -426,7 +432,7 @@ void *cv_threadfunc (void *ptr) {
 					/* FILL rectangleList */
 					rectangleList.push_back(fullrect);
 
-					#ifdef DEBUG
+					#ifdef DEBUG_MAIN
 					printf("RESULT: (%d,%d), (%d,%d), (%d,%d), (%d,%d)\n",
 						fullrect.points[0]->x, fullrect.points[0]->y, 
 						fullrect.points[1]->x, fullrect.points[1]->y,
@@ -456,26 +462,28 @@ void *cv_threadfunc (void *ptr) {
 		// Fill packets
 		// Packet fields are unsigned 16bit integers, so we need to scale them up
 		// Currently both dist and angle scaled 100x (hundredths precision)
+		// NOTE:
+		// Currently correct results are only calculated by using bottom basket and constant for top.
 		if (rectangleList[0].isValid())
 		{
 			outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]), 0);
 			outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
 		}
- 		if (rectangleList[1].isValid())
- 		{
- 			outgoing.distLeft = 100 * robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]), 1);
- 			outgoing.angleLeft = 100 * robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
- 		}
- 		if (rectangleList[2].isValid())
- 		{
- 			outgoing.distRight = 100 * robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]), 2);
- 			outgoing.angleRight = 100 * robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
- 		}
- 		if (rectangleList[3].isValid())
- 		{
- 			outgoing.distLow = 100 * robot.GetDistance(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]), 3);
- 			outgoing.angleLow = 100 * robot.GetAngle(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
- 		}
+//		if (rectangleList[1].isValid())
+//		{
+//			outgoing.distLeft = 100 * robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]), 1);
+//			outgoing.angleLeft = 100 * robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
+//		}
+//		if (rectangleList[2].isValid())
+//		{
+//			outgoing.distRight = 100 * robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]), 2);
+//			outgoing.angleRight = 100 * robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
+//		}
+		if (rectangleList[3].isValid())
+		{
+			outgoing.distLow = 100 * robot.GetDistance(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]), 3);
+			outgoing.angleLow = 100 * robot.GetAngle(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
+		}
 
 		// Draw filtered rects (thick blue line)
 		for (int i = 0; i < 4; i++)
@@ -489,7 +497,7 @@ void *cv_threadfunc (void *ptr) {
 			}
 		}
 
-		#ifdef DEBUG
+		#ifdef DEBUG_MAIN
 		printf("Top distance: %d\n", outgoing.distHigh);
 		printf("Top angle: %d\n\n", outgoing.angleHigh);
 		#endif
