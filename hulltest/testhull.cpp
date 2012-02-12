@@ -1,5 +1,5 @@
 //#define DEBUG_MAIN
-//#define DEBUG_SORT
+#define DEBUG_SORT
 //#define DEBUG_POLY
 
 /*
@@ -216,6 +216,15 @@ void SortRects(vector<PolyVertices> &list)
 	#ifdef DEBUG_SORT
 	printf("Empty structs pushed: %d\n", 4 - list.size());
 	#endif
+
+//	if (list.size() < 3)
+//	{
+//		for (int i = 0; i < list.size(); i++)
+//		{
+//			list[i].invalidate();
+//		}
+//		return;
+//	}	
 
 	for (int i = list.size(); i < 4; i++)
 	{
@@ -479,16 +488,17 @@ void *cv_threadfunc (void *ptr) {
 			outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]), 0);
 			outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
 		}
-//		if (rectangleList[1].isValid())
-//		{
-//			outgoing.distLeft = 100 * robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]), 1);
-//			outgoing.angleLeft = 100 * robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
-//		}
-//		if (rectangleList[2].isValid())
-//		{
-//			outgoing.distRight = 100 * robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]), 2);
-//			outgoing.angleRight = 100 * robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
-//		}
+		/* LEFT AND RIGHT SWAPPED TEMPORARILY, FIND REAL PROBLEM LATER */
+		if (rectangleList[1].isValid())
+		{
+			outgoing.distLeft = 100 * robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]), 1);
+			outgoing.angleLeft = 100 * robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
+		}
+		if (rectangleList[2].isValid())
+		{
+			outgoing.distRight = 100 * robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]), 2);
+			outgoing.angleRight = 100 * robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
+		}
 		if (rectangleList[3].isValid())
 		{
 			outgoing.distLow = 100 * robot.GetDistance(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]), 3);
@@ -514,9 +524,14 @@ void *cv_threadfunc (void *ptr) {
 		printf("Top angle: %d\n\n", outgoing.angleHigh);
 		#endif
 
+		if (display) {
 		CvPoint cent1 = cvPoint(320, 0);
 		CvPoint cent2 = cvPoint(320, 480);
- 		if (display) { cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 ); }
+		CvPoint cent3 = cvPoint(0, 240);
+		CvPoint cent4 = cvPoint(640, 240);
+			cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 );
+			cvLine( outimg, cent3, cent4, CV_RGB(0,255,0), 1, 8, 0 ); 
+		}
 
 		/* SEND TO CRIO */
 		sendData(&outgoing, CRRsocket);
@@ -564,6 +579,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	freenect_set_led(f_dev, LED_RED);
 
 	if (display) { cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE ); }
 	rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_IR_DEPTH);

@@ -1,8 +1,8 @@
 #include "RobotMath.h"
-//#define DEBUG
+#define DEBUG
 using namespace std;
 
-const double RobotMath::k_diff_height[4] = {85.5 / 12.0, 48.5 / 12.0, 48.5 / 12.0, 15.5 / 12.0};
+const double RobotMath::k_diff_height[4] = {85 / 12.0, 48 / 12.0, 48 / 12.0, 15 / 12.0};
 
 RobotMath::RobotMath()
 {
@@ -72,7 +72,8 @@ double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 
 	angle_offset_mid = (angle_offset_left + angle_offset_right) / 2;
 
-	angle_reflect_correction = atan(dist_perpendicular_to_center / dist_bkbd_perpendicular) - atan(dist_perpendicular_to_center / dist_reflect_perpendicular);
+	// angle_reflect_correction = atan(dist_perpendicular_to_center / dist_bkbd_perpendicular) - atan(dist_perpendicular_to_center / dist_reflect_perpendicular);
+	angle_reflect_correction = 0.0;
 
 	if (dist_flat_left < dist_flat_right && angle_offset_mid <= 0)
 	{
