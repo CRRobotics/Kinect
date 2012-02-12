@@ -1,19 +1,25 @@
 #include "RobotMath.h"
-//#define DEBUG
+#define DEBUG
 using namespace std;
+
+const double RobotMath::k_diff_height[4] = {85.5 / 12.0, 48.5 / 12.0, 48.5 / 12.0, 15.5 / 12.0};
 
 RobotMath::RobotMath()
 {
 	// Empty
 }
 
-double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
+double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt, int basket)
 {
+	if (basket > 3) basket = 3;
+	if (basket < 0) basket = 0;
+
 	angle_elevation_left = atan((240 - leftpt.y) / k_zeroy) + k_cameraoffset;
 	angle_elevation_right = atan((240 - rightpt.y) / k_zeroy) + k_cameraoffset;
 	
-	dist_flat_left = (k_diff_height * (cos(angle_elevation_left)) / sin(angle_elevation_left));
-	dist_flat_right = (k_diff_height * (cos(angle_elevation_right)) / sin(angle_elevation_right));
+	dist_flat_left = (k_diff_height[basket] * (cos(angle_elevation_left)) / sin(angle_elevation_left));
+	dist_flat_right = (k_diff_height[basket] * (cos(angle_elevation_right)) / sin(angle_elevation_right));
+	printf("k_diff_height: %f; basket: %d\n", k_diff_height[basket], basket);
 	
 	if (dist_flat_left < dist_flat_right) // On left side of field
 	{

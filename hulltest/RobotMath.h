@@ -11,13 +11,15 @@ class RobotMath
 {
 public:
 	RobotMath();
-	double GetDistance(CvPoint leftpt, CvPoint rightpt);
+	double GetDistance(CvPoint leftpt, CvPoint rightpt, int basket);
 	double GetAngle(CvPoint leftpt, CvPoint rightpt);
 private:
 	/* DISTANCE FINDING */
 	/* GIVEN */
 	// Diff. betwen camera  height and backboard height
-	static const double k_diff_height = 85.5 / 12.0;
+	// Order is top, left, right, bottom.
+	// Differences are 12.5in shorter than actual height
+	static const double k_diff_height[4];
 
 	// Real distance between top left and top right points. Should be 2ft.
 	static const double k_bkbd_width = 2.0;

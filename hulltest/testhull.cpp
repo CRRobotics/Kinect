@@ -52,6 +52,7 @@ public:
 	PolyVertices();
 	void invalidate();
 	bool isValid();
+	bool isMalformed();
 };
 
 PolyVertices::PolyVertices()
@@ -69,6 +70,11 @@ void PolyVertices::invalidate()	{ center.x = center.y = 0; }
 
 bool PolyVertices::isValid() { return (center.x != 0 && center.y != 0); }
 
+bool PolyVertices::isMalformed()
+{
+	return false;
+}
+
 // Compare centers
 bool operator== (const PolyVertices& arg1, const PolyVertices& arg2) { return (arg1.center.x == arg2.center.x && arg1.center.y == arg2.center.y); }
 
@@ -82,6 +88,10 @@ pthread_t cv_thread;
 int CRRsocket;
 
 
+/*
+ * Converts n-gons to 4-gons.
+ * qKey order is, CCW from top right, 3->2->0->1.
+ */
 void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 {
 	// Sequence is the hull.
@@ -153,11 +163,11 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 		printf("Dist to 0: %d\n", poly->dist);
 		#endif
 
-		// Draw vertices
-		cvCircle( img, *poly->points[0], 4, CV_RGB(255,0,255), -1, 8, 0 );
-		cvCircle( img, *poly->points[1], 4, CV_RGB(255,0,255), -1, 8, 0 );
-		cvCircle( img, *poly->points[2], 4, CV_RGB(255,0,255), -1, 8, 0 );
-		cvCircle( img, *poly->points[3], 4, CV_RGB(255,0,255), -1, 8, 0 );
+		// Draw vertices (purple circles)
+		cvCircle( img, *poly->points[0], 3, CV_RGB(255,0,255), -1, 8, 0 );
+		cvCircle( img, *poly->points[1], 3, CV_RGB(255,0,255), -1, 8, 0 );
+		cvCircle( img, *poly->points[2], 3, CV_RGB(255,0,255), -1, 8, 0 );
+		cvCircle( img, *poly->points[3], 3, CV_RGB(255,0,255), -1, 8, 0 );
 	}
 }
 
@@ -175,7 +185,6 @@ bool FilterSub(vector<PolyVertices> &list, PolyVertices poly)
 }
 
 // Remove rectangles enclosed by others.
-// Has also been co-opted to filter out rectangles with odd angles, i.e. not targets.
 void FilterInnerRects(vector<PolyVertices> &list)
 {
 	vector<PolyVertices>::iterator p = list.begin();
@@ -183,7 +192,6 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	{
 		if (FilterSub(list, *p))
 		{
-			fflush(stdout);
 			p = list.erase(p);
 		}
 		else
@@ -194,11 +202,12 @@ void FilterInnerRects(vector<PolyVertices> &list)
 }
 
 // The word "must" in the following function should be interpreted to mean "if we are not missing more than 
-// however many rectangles we think we are missing." There is really no provision for missing >1, but it 
+// however many rectangles we think we are missing." There is really no provision yet for missing >1, but it 
 // shouldn't be too much of an issue.
 void SortRects(vector<PolyVertices> &list)
 {
 	// Fill with invalid structs to ensure no segfaults.
+	// TODO: if we decide that missing >1 is not worth coding, we could return here if 4 - list.size() is >1.
 	#ifdef DEBUG_S
 	printf("Empty structs pushed: %d\n", 4 - list.size());
 	#endif
@@ -210,61 +219,29 @@ void SortRects(vector<PolyVertices> &list)
 
 	PolyVertices top, left, right, bottom;
 	top = left = right = bottom = list[0];
-	#ifdef DEBUG_S
-	printf("list[0].center: (%d, %d)\n", list[0].center.x, list[0].center.y);
-	#endif
 
-	// Fill the four spaces with prelim. data
+	/* FILL WITH PRELIM. DATA */
 	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
 	{
-		#ifdef DEBUG_S
-		printf("(*p).center: (%d, %d)\n", (*p).center.x, (*p).center.y);
-		#endif
 		if ((*p).isValid())
 		{
 			if ((*p).center.y < top.center.y)
-			{
 				top = *p;	
-				#ifdef DEBUG_S
-				printf("Top replaced\n");
-				#endif
-			}
 			if ((*p).center.y > bottom.center.y)
-			{
 				bottom = *p;
-				#ifdef DEBUG_S
-				printf("Bottom replaced\n");
-				#endif
-			}
 			if ((*p).center.x < left.center.x)
-			{
 				left = *p;
-				#ifdef DEBUG_S
-				printf("Left replaced\n");
-				#endif
-			}
 			if ((*p).center.x > right.center.x)
-			{
 				right = *p;
-				#ifdef DEBUG_S
-				printf("Right replaced\n");
-				#endif
-			}
 		}
 	}
 	
  	/* FIND WHICH RECTANGLE IS MISSING */ 
  	if (top == left || top == right)
  	{
-		#ifdef DEBUG_S
-		printf("Outer: Top/Left or Top/Right\n");
-		#endif
  		// CASE: top and left are ambiguous
  		if (abs(top.center.x - left.center.x) < 50)
  		{
-			#ifdef DEBUG_S
-			printf("Top/Left unresolved\n");
-			#endif
  			// right and bottom must be correct
  			list[2] = right;
  			list[3] = bottom;
@@ -283,9 +260,6 @@ void SortRects(vector<PolyVertices> &list)
  		// CASE: top and right are ambiguous
  		else if (abs(top.center.x - right.center.x) < 50)
  		{
-			#ifdef DEBUG_S
-			printf("Top/Right unresolved\n");
-			#endif
  			// left and bottom must be correct
  			list[1] = left;
  			list[3] = bottom;
@@ -305,15 +279,9 @@ void SortRects(vector<PolyVertices> &list)
 
 	if (bottom == left || bottom == right)
 	{
-		#ifdef DEBUG_S
-		printf("Outer: Bottom/Left or Bottom/Right\n");
-		#endif
 		// CASE: bottom and left are ambiguous
  		if (abs(bottom.center.x - left.center.x) < 50)
  		{
-			#ifdef DEBUG_S
-			printf("Bottom/Left unresolved\n");
-			#endif
  			// top and right must be correct
  			list[0] = top;
  			list[2] = right;
@@ -332,9 +300,6 @@ void SortRects(vector<PolyVertices> &list)
  		// CASE: bottom and right are ambiguous
  		else if (abs(bottom.center.x - right.center.x) < 50)
  		{
-			#ifdef DEBUG_S
-			printf("Bottom/Right unresolved\n");
-			#endif
  			// top and left must be correct
  			list[0] = top;
  			list[1] = left;
@@ -364,66 +329,72 @@ void SortRects(vector<PolyVertices> &list)
 // callback for rgbimage, called by libfreenect
 void rgb_cb(freenect_device *dev, void *rgb, uint32_t timestamp)
 {
-	// lock mutex for opencv rgb image
 	pthread_mutex_lock( &mutex_rgb );
 	memcpy(rgbimg->imageData, rgb, FREENECT_VIDEO_RGB_SIZE);
-	// unlock mutex
 	pthread_mutex_unlock( &mutex_rgb );
 }
 
 
 /*
- * thread for displaying the opencv content
+ * Main thread for Kinect input, vision processing, and network send - everything, really.
  */
 void *cv_threadfunc (void *ptr) {
+	// Images for openCV
 	IplImage* timg = cvCloneImage(rgbimg); // Image we do our processing on
 	IplImage* dimg = cvCloneImage(timg); // Image we draw on
 	CvSize sz = cvSize( timg->width & -2, timg->height & -2);
 	IplImage* outimg = cvCreateImage(sz, 8, 3);
 
+	// Mem. mgmt. Remember to clear each time we run loop.
 	CvMemStorage* storage = cvCreateMemStorage(0);
 
 	// Set region of interest
 	cvSetImageROI(timg, cvRect(0, 0, sz.width, sz.height));
 	cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height));
 
+	// Open network socket.
 	CRRsocket = openSocket();
 	if (CRRsocket < 0) pthread_exit(NULL);
 
-	// Main loop
+	/*
+	 * MAIN LOOP
+	 */
 	while (1) 
-	{ // Sequence to run ApproxPoly on
+	{ 
+		// Sequence to run ApproxPoly on
 		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage );
 		CvSeq* contours; // Raw contours list
 		CvSeq* hull; // Current convex hull
 		int hullcount; // # of points in hull
 
+		/* PULL RAW IMAGE FROM KINECT */
 		pthread_mutex_lock( &mutex_rgb );
 		cvCopy(rgbimg, dimg, 0);
 		cvCopy(rgbimg, timg, 0);
 		pthread_mutex_unlock( &mutex_rgb );
 
-		/* DILATE TEST */
+		/* DILATE */
 		IplConvKernel* element = cvCreateStructuringElementEx(3, 3, 1, 1, 0);
 		IplConvKernel* element2 = cvCreateStructuringElementEx(5, 5, 2, 2, 0);
 		cvDilate(timg, timg, element2, 1);
 		cvErode(timg, timg, element, 1);
 
-		/* THRESHOLD TEST */
+		/* THRESHOLD*/
 		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
-		/* Output processed or raw image. */
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
+		/* OUTPUT PROCESSED OR RAW IMAGE (FindContours destroys image) */
+		cvCvtColor(timg, outimg, CV_GRAY2BGR);
 
 		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
  
-		/* CONVEX HULL + POLYGON APPROXIMATION*/
-		CvPoint* draw1; // Store points to draw line between
-		CvPoint* draw2; // ''
+		/* CONVEX HULL + POLYGON APPROXIMATION + CONVERT TO RECTANGLE + FILTER FOR INVALID RECTANGLES */ 
+		// Store points to draw line between
+		CvPoint* draw1;
+		CvPoint* draw2; 
 		vector<PolyVertices> rectangleList;
 
-		while (contours)
+		while (contours) // Run for all polygons
 		{
 			// List of raw rectangles
 			PolyVertices fullrect;
@@ -431,6 +402,7 @@ void *cv_threadfunc (void *ptr) {
 			// Filter noise
 			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 600)
 			{
+				// Get convex hull
 				hull = cvConvexHull2( contours, storage, CV_CLOCKWISE, 1 );
 				hullcount = hull->total;
 
@@ -441,20 +413,25 @@ void *cv_threadfunc (void *ptr) {
  					draw2 = (CvPoint*)cvGetSeqElem( hull, i );
  					cvLine( outimg, *draw1, *draw2, CV_RGB(255,0,0), 1, 8, 0 );
  					draw1 = draw2;
-					// cvCircle( outimg, *draw2, 4, CV_RGB(0,100,150), -1, 8, 0 );
  				}
 
-				// Convert polys to rectangles, fill list
+				// Convert polys from convex hull to rectangles, fill list
 				polyToQuad(hull, &fullrect, outimg);
-				if(!(fullrect.points[0] == NULL || fullrect.points[1] == NULL || fullrect.points[2] == NULL || fullrect.points[3] == NULL))
+
+				// Filter for bad rectangles
+				if(!(fullrect.points[0] == NULL || fullrect.points[1] == NULL || 
+					fullrect.points[2] == NULL || fullrect.points[3] == NULL)
+					&& !fullrect.isMalformed())
 				{
 					/* FILL rectangleList */
 					rectangleList.push_back(fullrect);
 
 					#ifdef DEBUG
 					printf("RESULT: (%d,%d), (%d,%d), (%d,%d), (%d,%d)\n",
-					fullrect.points[0]->x, fullrect.points[0]->y, fullrect.points[1]->x, fullrect.points[1]->y,
-						fullrect.points[2]->x, fullrect.points[2]->y, fullrect.points[3]->x, fullrect.points[3]->y);
+						fullrect.points[0]->x, fullrect.points[0]->y, 
+						fullrect.points[1]->x, fullrect.points[1]->y,
+						fullrect.points[2]->x, fullrect.points[2]->y, 
+						fullrect.points[3]->x, fullrect.points[3]->y);
 					fflush(stdout);
 					#endif
 				}
@@ -466,23 +443,43 @@ void *cv_threadfunc (void *ptr) {
 
 		/* FILTER OVERLAPPING RECTANGLES */
 		FilterInnerRects(rectangleList);
+
+		/* SORT INTO CORRECT BUCKET */
 		SortRects(rectangleList);
 
 		/* DRAW & PROCESS MATH; FILL SEND STRUCT */
+		// TODO: Might want to make the math stuff static for efficiency.
 		RobotMath robot;
 		TrackingData outgoing;
 		memset(&outgoing, 0, sizeof(TrackingData));
 
+		// Fill packets
+		// Packet fields are unsigned 16bit integers, so we need to scale them up
+		// Currently both dist and angle scaled 100x (hundredths precision)
+		if (rectangleList[0].isValid())
+		{
+			outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]), 0);
+			outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
+		}
+ 		if (rectangleList[1].isValid())
+ 		{
+ 			outgoing.distLeft = 100 * robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]), 1);
+ 			outgoing.angleLeft = 100 * robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
+ 		}
+ 		if (rectangleList[2].isValid())
+ 		{
+ 			outgoing.distRight = 100 * robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]), 2);
+ 			outgoing.angleRight = 100 * robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
+ 		}
+ 		if (rectangleList[3].isValid())
+ 		{
+ 			outgoing.distLow = 100 * robot.GetDistance(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]), 3);
+ 			outgoing.angleLow = 100 * robot.GetAngle(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
+ 		}
+
+		// Draw filtered rects (thick blue line)
 		for (int i = 0; i < 4; i++)
 		{
-			// Fill packets
-			// Packet fields are unsigned 16bit integers, so we need to scale them up
-			if (rectangleList[i].isValid())
-			{
-				outgoing.distHigh = 100 * robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
-				outgoing.angleHigh = 100 * robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
-			}
-			// Draw filtered rects
 			if (outimg && rectangleList[i].isValid())
 			{
 				cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
@@ -505,13 +502,19 @@ void *cv_threadfunc (void *ptr) {
 			// Empty for now.
 		}
 
+		/* DISPLAY */
 		cvShowImage (FREENECTOPENCV_WINDOW_N,outimg);
+		
+		/* CLEANUP */
 		cvClearMemStorage(storage);
 	}
 	pthread_exit(NULL);
 }
 
 
+/*
+ * Main method; primarily just initializes our thread and handles Kinect details.
+ */
 int main(int argc, char **argv)
 {
 	freenect_context *f_ctx;
