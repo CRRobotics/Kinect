@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cv.h>
 
+#define PI 3.1415926535
+
 class RobotMath
 {
 public:
@@ -12,22 +14,20 @@ public:
 	double GetDistance(CvPoint leftpt, CvPoint rightpt);
 	double GetAngle(CvPoint leftpt, CvPoint rightpt);
 private:
-	double elevLookup[90];
-
 	/* DISTANCE FINDING */
 	/* GIVEN */
 	// Diff. betwen camera  height and backboard height
-	static const double k_diff_height = 31.0 / 12.0;
+	static const double k_diff_height = 85.5 / 12.0;
 
 	// Real distance between top left and top right points. Should be 2ft.
 	static const double k_bkbd_width = 2.0;
 
-	// Line on the viewpicture perpendicular to ground.
+	// Constant for conversion between pixels and angle
 	static const double k_zeroy = 609.275;
 	static const double k_zerox = 589.366;
 
-	// 
-	static const double k_cameraoffset = 0;
+	// Angle above horizontal
+	static const double k_cameraoffset = 0.22411;
 
 	// Apparent angles to left and right points from camera horizontal zero line
 	// Actually useless placeholders at the moment.

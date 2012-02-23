@@ -31,6 +31,7 @@ freenectopencv.cpp
 #include <highgui.h>
 
 #include "RobotMath.h"
+#include "beagleSender.h"
 
 
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
@@ -39,23 +40,49 @@ freenectopencv.cpp
 #define FREENECTOPENCV_RGB_WIDTH 640
 #define FREENECTOPENCV_RGB_HEIGHT 480
 
-typedef struct 
+class PolyVertices
 {
+public:
 	CvPoint* points[4];
 	CvPoint center; 
 	int dist;
-}PolyVertices;
+
+	PolyVertices();
+	void invalidate();
+	bool isValid();
+};
+
+PolyVertices::PolyVertices()
+{
+	points[0] = NULL;
+	points[1] = NULL;
+	points[2] = NULL;
+	points[3] = NULL;
+	center.x = 0;
+	center.y = 0;
+	dist = 0;
+}
+
+void PolyVertices::invalidate()	{ center.x = center.y = 0; }
+
+bool PolyVertices::isValid() { return (center.x != 0 && center.y != 0); }
+
+// Compare centers
+bool operator== (const PolyVertices& arg1, const PolyVertices& arg2) { return (arg1.center.x == arg2.center.x && arg1.center.y == arg2.center.y); }
+
 
 IplImage* rgbimg = 0;
 IplImage* tempimg = 0;
 pthread_mutex_t mutex_rgb = PTHREAD_MUTEX_INITIALIZER;
 pthread_t cv_thread;
 
+int CRRsocket;
+
 
 void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img )
 {
-	// Sequence is the hull
-	// poly->points is the array that stores the points of the rectangle
+	// Sequence is the hull.
+	// poly->points is the array that stores the points of the rectangle.
 	// img is the image we are drawing lines and such on. Not strictly necessary.
 	printf("Sequence: %d\n", sequence->total);
 
@@ -148,10 +175,8 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	ugly:
 	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
 	{
-		printf("Filter\n");
 		if (FilterSub(list, *p))
 		{
-			printf("Delete\n");
 			fflush(stdout);
 			list.erase(p);
 			goto ugly;
@@ -159,71 +184,121 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	}
 }
 
+// The word "must" in the following function should be interpreted to mean "if we are not missing more than 
+// however many rectangles we think we are missing." There is really no provision for missing >1, but it 
+// shouldn't be too much of an issue.
 void SortRects(vector<PolyVertices> &list)
 {
-	PolyVertices *top, *left, *right, *bottom;
+	for (int i = list.size(); i < 4; i++)
+	{
+		PolyVertices temp;
+		list.push_back(temp);
+	}
+
+	PolyVertices top, left, right, bottom;
 	top = left = right = bottom = list[0];
 
+	// Fill the four spaces with prelim. data
 	for (vector<PolyVertices>::iterator p = list.begin(); p < list.end(); p++)
 	{
-		if (*p.center.y < *top.center.y)
-			top = p;	
-		if (*p.center.y > *bottom.center.y)
-			bottom = p;
-		if (*p.center.x < *left.center.x)
-			left = p;
-		if (*p.center.x > *right.center.x)
-			right = p;
+		if ((*p).center.y < top.center.y)
+			top = *p;	
+		if ((*p).center.y > bottom.center.y)
+		        bottom = *p;
+		if ((*p).center.x < left.center.x)
+		        left = *p;
+		if ((*p).center.x > right.center.x)
+			right = *p;
 	}
 	
-	if (top == left || top == right)
-	{
-		if (abs(*top.x - *left.x) < 50)
-		{
-			list[2] = right;
-			list[3] = bottom;
-		}
-		else if (abs(*top.x - *right.x) < 50)
-		{
-			list[1] = left;
-			list[3] = bottom;
-		}
+// 	/* FIND WHICH RECTANGLE IS MISSING */ 
+// 	if (top == left || top == right)
+// 	{
+// 		// CASE: top and left are ambiguous
+// 		if (abs(top.center.x - left.center.x) < 50)
+// 		{
+// 			// right and bottom must be correct
+// 			list[2] = right;
+// 			list[3] = bottom;
+// 
+// 			if (abs(top.center.x - bottom.center.x) < 50) // both are top
+// 			{
+// 				list[0] = top;
+// 				list[1].invalidate();
+// 			}
+// 			else // both are left
+// 			{
+// 				list[0].invalidate();
+// 				list[1] = left;
+// 			}
+// 		}
+// 		// CASE: top and right are ambiguous
+// 		else if (abs(top.center.x - right.center.x) < 50)
+// 		{
+// 			// left and bottom must be correct
+// 			list[1] = left;
+// 			list[3] = bottom;
+// 			
+// 			if (abs(top.center.x - bottom.center.x) < 50) // both are top
+// 			{
+// 				list[0] = top;
+// 				list[2].invalidate();
+// 			}
+// 			else // both are right
+// 			{
+// 				list[0].invalidate();
+// 				list[2] = right;
+// 			}
+// 		}
+// 
+// 		// CASE: bottom and left are ambiguous
+// 		if (abs(top.center.x - left.center.x) < 50)
+// 		{
+// 			// top and right must be correct
+// 			list[0] = top;
+// 			list[2] = right;
+// 
+// 			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
+// 			{
+// 				list[1].invalidate();
+// 				list[3] = bottom;
+// 			}
+// 			else // both are left
+// 			{
+// 				list[1] = left;
+// 				list[3].invalidate();
+// 			}
+// 		}
+// 		// CASE: bottom and right are ambiguous
+// 		else if (abs(bottom.center.x - right.center.x) < 50)
+// 		{
+// 			// top and left must be correct
+// 			list[0] = top;
+// 			list[1] = left;
+// 			
+// 			if (abs(top.center.x - bottom.center.x) < 50) // both are bottom
+// 			{
+// 				list[2].invalidate();
+// 				list[3] = bottom;
+// 			}
+// 			else // both are right
+// 			{
+// 				list[2] = right;
+// 				list[3].invalidate();
+// 			}
+// 		}
+// 	}
+// 	for (int i = 0; i < 4; i++)
+// 	{
+// 		printf("[%d]: (%d, %d)\n", i, list[i].center.x, list[i].center.y);
+// 	}
 
-		if (abs(*top.y - *bottom.y) < 50)
-		{
-			list[0] = top;
-			list[1] = NULL;
-		}
-		else
-		{
-			list[0] = NULL;
-			list[1] = top;
-		}
-	}
-
-	else if (bottom == left || bottom == right)
-	{
-		if (abs(*bottom.x - *left.x) < 50)
-		{
-			list[2] = right;
-			list[0] = top;
-		}
-		else if (abs(*bottom.x - *right.x) < 50)
-		{
-			list[1] = left;
-			list[0] = top;
-		}
-
-		if (abs(*bottom.y - *top.y) < 50)
-{
-	list[
-
-	}
+ 	printf("[0]: (%d, %d)\n", top.center.x, top.center.y);
+ 	printf("[1]: (%d, %d)\n", left.center.x, left.center.y);
+ 	printf("[2]: (%d, %d)\n", right.center.x, right.center.y);
+ 	printf("[3]: (%d, %d)\n", bottom.center.x, bottom.center.y);
 
 	list[0] = top;
-	list[1] = left;
-	list[2] = right;
-	list[3] = bottom;
 }
 
 
@@ -253,10 +328,13 @@ void *cv_threadfunc (void *ptr) {
 	cvSetImageROI(timg, cvRect(0, 0, sz.width, sz.height));
 	cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height));
 
+	CRRsocket = openSocket();
+	if (CRRsocket < 0) pthread_exit(NULL);
+
 	// Main loop
 	while (1) 
-	{
-		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage ); // Sequence to run ApproxPoly on
+	{ // Sequence to run ApproxPoly on
+		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage );
 		CvSeq* contours; // Raw contours list
 		CvSeq* hull; // Current convex hull
 		int hullcount; // # of points in hull
@@ -286,12 +364,10 @@ void *cv_threadfunc (void *ptr) {
 		CvPoint* draw2; // ''
 		vector<PolyVertices> rectangleList;
 
-		printf("\n\n");
 		while (contours)
 		{
 			// List of raw rectangles
 			PolyVertices fullrect;
-			memset((char*)&fullrect, 0, sizeof(PolyVertices));
 
 			// Filter noise
 			if (fabs(cvContourArea(contours, CV_WHOLE_SEQ)) > 600)
@@ -299,7 +375,7 @@ void *cv_threadfunc (void *ptr) {
 				hull = cvConvexHull2( contours, storage, CV_CLOCKWISE, 1 );
 				hullcount = hull->total;
 
-				// Draw hull
+				// Draw hull (red line)
  				draw1 = (CvPoint*)cvGetSeqElem(hull, hullcount - 1);
  				for (int i = 0; i < hullcount; i++)
  				{
@@ -331,25 +407,45 @@ void *cv_threadfunc (void *ptr) {
 		FilterInnerRects(rectangleList);
 		SortRects(rectangleList);
 
-		if (outimg)
-		{
-			for (int i = 0; i < rectangleList.size(); i++)
-			{
-				cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
-				cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
-			}
-		}
-
-		/* ADD MATH/SENDING FOR rectangleList HERE */
-
+		/* DRAW & PROCESS MATH; FILL SEND STRUCT */
 		RobotMath robot;
-		for (int i = 0; i < rectangleList.size(); i++)
+		TrackingData outgoing;
+		memset(&outgoing, 0, sizeof(TrackingData));
+
+		if (rectangleList[0].isValid())
 		{
-			robot.GetDistance(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
-			robot.GetAngle(*(rectangleList[i].points[2]), *(rectangleList[i].points[3]));
+			outgoing.distHigh = robot.GetDistance(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
+			outgoing.angleHigh = robot.GetAngle(*(rectangleList[0].points[2]), *(rectangleList[0].points[3]));
 		}
+// 		if (rectangleList[1].isValid())
+//		{
+//			outgoing.distLeft = robot.GetDistance(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
+//			outgoing.angleLeft = robot.GetAngle(*(rectangleList[1].points[2]), *(rectangleList[1].points[3]));
+//		}
+//		if (rectangleList[2].isValid())
+//		{
+//			outgoing.distRight = robot.GetDistance(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
+//			outgoing.angleRight = robot.GetAngle(*(rectangleList[2].points[2]), *(rectangleList[2].points[3]));
+//		}
+//		if (rectangleList[3].isValid())
+//		{
+//			outgoing.distLow = robot.GetDistance(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
+//			outgoing.angleLow = robot.GetAngle(*(rectangleList[3].points[2]), *(rectangleList[3].points[3]));
+//		}
+
+		// if (outimg)
+		// {
+		// 	cvLine( outimg, *(rectangleList[i].points[3]), *(rectangleList[i].points[2]), CV_RGB(0,0,255), 2, 8, 0 );
+		// 	cvLine( outimg, *(rectangleList[i].points[2]), *(rectangleList[i].points[0]), CV_RGB(0,0,255), 2, 8, 0 );
+		// 	cvLine( outimg, *(rectangleList[i].points[0]), *(rectangleList[i].points[1]), CV_RGB(0,0,255), 2, 8, 0 );
+		// 	cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
+		// }
+
+		printf("Top distance: %d\n", outgoing.distHigh);
+		printf("Top angle: %d\n\n", outgoing.angleHigh);
+
+		/* SEND TO CRIO */
+		sendData(&outgoing, CRRsocket);
 
 		if( cvWaitKey( 15 )==27 )
 		{
@@ -382,6 +478,7 @@ int main(int argc, char **argv)
 		printf("Could not open device\n");
 		return 1;
 	}
+
 
 	cvNamedWindow( FREENECTOPENCV_WINDOW_N, CV_WINDOW_AUTOSIZE );
 	rgbimg = cvCreateImage(cvSize(FREENECTOPENCV_RGB_WIDTH, FREENECTOPENCV_RGB_HEIGHT), IPL_DEPTH_8U, FREENECTOPENCV_IR_DEPTH);
