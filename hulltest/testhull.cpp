@@ -182,6 +182,18 @@ void FilterInnerRects(vector<PolyVertices> &list)
 			goto ugly;
 		}
 	}
+	/* Version without goto:
+	vector<PolyVertices>::iterator p = list.begin();
+	while (p < list.end()) {
+		if (FilterSub(list, *p))
+		{
+			fflush(stdout);
+			p = list.erase(p);
+		} else {
+			++p;
+		}
+	}
+	*/
 }
 
 // The word "must" in the following function should be interpreted to mean "if we are not missing more than 
