@@ -374,7 +374,7 @@ void *cv_threadfunc (void *ptr) {
 		/* CONVEX HULL + POLYGON APPROXIMATION*/
 		CvPoint* draw1; // Store points to draw line between
 		CvPoint* draw2; // ''
-		vector<PolyVertices> rectangleList;
+		vector<PolyVertices> rectangleList; // list instead of vector?
 
 		while (contours)
 		{
