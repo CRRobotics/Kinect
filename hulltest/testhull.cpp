@@ -162,8 +162,8 @@ bool FilterSub(vector<PolyVertices> &list, PolyVertices poly)
 {
 	for (int i = 0; i < list.size(); i++)
 	{
-		double result = sqrt(pow((double)list[i].center.x - (double)poly.center.x, 2) + pow((double)list[i].center.y - (double)poly.center.y, 2));
-		if ((result < 50) && (list[i].dist != poly.dist))
+		double result = pow((double)list[i].center.x - (double)poly.center.x, 2) + pow((double)list[i].center.y - (double)poly.center.y, 2);
+		if ((result < 50 * 50) && (list[i].dist != poly.dist))
 			if (list[i].dist > poly.dist)
 				return true;
 	}
