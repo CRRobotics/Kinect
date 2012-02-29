@@ -6,7 +6,6 @@ RobotMath::RobotMath()
 	// Empty
 }
 
-// For now, robot needs to be on the left side of the field.
 double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 {
 	angle_elevation_left = atan((240 - leftpt.y) / k_zeroy) + k_cameraoffset;
@@ -48,7 +47,7 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 		printf("dist_output: %f\n", dist_output);
 		return dist_output; 
 	}
-	else if (dist_flat_left == dist_flat_right)
+	else if (dist_flat_left == dist_flat_right) // Will never happen, but catching middle line
 	{
 		dist_output = sqrt(pow(dist_flat_left, 2) - pow(k_bkbd_width / 2, 2)) + (15.0 / 12.0); // Dist. between bkbd and hoop center
 		printf("dist_output: %f\n", dist_output);
@@ -57,13 +56,17 @@ double RobotMath::GetDistance(CvPoint leftpt, CvPoint rightpt)
 }
 
 // Should be doable with only viewpicture info and nothing from GetDistance.
+// POSITIVE ANGLE IS TURN CLOCKWISE
 double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 {
 	printf("leftpt.x: %d\n", leftpt.x);
 	printf("rightpt.x: %d\n", rightpt.x);
 
-	angle_offset_left = atan((320 - leftpt.x) / k_zerox);
-	angle_offset_right = atan((320 - rightpt.x) / k_zerox);
+	angle_offset_left = atan((leftpt.x - 320) / k_zerox);
+	angle_offset_right = atan((rightpt.x - 320) / k_zerox);
+
+	printf("angle_offset_left: %f\n", angle_offset_left);
+	printf("angle_offset_right: %f\n", angle_offset_right);
 
 	angle_offset_mid = (angle_offset_left + angle_offset_right) / 2;
 
@@ -87,12 +90,16 @@ double RobotMath::GetAngle(CvPoint leftpt, CvPoint rightpt)
 	}
 	else if (dist_flat_left > dist_flat_right && angle_offset_mid > 0)
 	{
-		angle_output = angle_reflect_correction - angle_offset_mid;
+		angle_output = angle_offset_mid - angle_reflect_correction;
 	}
-	else
+	else // Shouldn't happen.
 	{
 		angle_output = angle_offset_mid;
 	}
 
+	// CONVERT TO DEGREES
+	angle_output = angle_output * 180 / PI;
+
+	printf("angle_output: %f\n", angle_output);
 	return angle_output; // As above.
 }

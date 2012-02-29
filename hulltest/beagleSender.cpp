@@ -9,7 +9,7 @@
 
 #include "beagleSender.h"
 
-#define CRIO_ADDRESS "10.6.39.5"
+#define CRIO_ADDRESS "10.16.39.2"
 #define CRIO_PORT 6639
 
 // static struct sockaddr_in crio;
