@@ -36,6 +36,7 @@ freenectopencv.cpp
 
 #include "RobotMath.h"
 #include "beagleSender.h"
+#include "axisSender.h"
 
 
 #define FREENECTOPENCV_WINDOW_N "Normalimage"
@@ -376,7 +377,7 @@ void *cv_threadfunc (void *ptr) {
 
 	// Set region of interest
 	cvSetImageROI(timg, cvRect(0, 0, sz.width, sz.height));
-	if (display) { cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height)); }
+	cvSetImageROI(dimg, cvRect(0, 0, sz.width, sz.height));
 
 	// Open network socket.
 	CRRsocket = openSocket();
@@ -409,7 +410,7 @@ void *cv_threadfunc (void *ptr) {
 		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
 		/* OUTPUT PROCESSED OR RAW IMAGE (FindContours destroys image) */
-		if (display) { cvCvtColor(dimg, outimg, CV_GRAY2BGR); }
+		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
@@ -433,7 +434,7 @@ void *cv_threadfunc (void *ptr) {
 				hullcount = hull->total;
 
 				// Draw hull (red line)
-				if (display) {
+//				if (display) {
 					draw1 = (CvPoint*)cvGetSeqElem(hull, hullcount - 1);
 					for (int i = 0; i < hullcount; i++)
 					{
@@ -441,7 +442,7 @@ void *cv_threadfunc (void *ptr) {
 						cvLine( outimg, *draw1, *draw2, CV_RGB(255,0,0), 1, 8, 0 );
 						draw1 = draw2;
 					}
-				}
+//				}
 
 				// Convert polys from convex hull to rectangles, fill list
 				polyToQuad(hull, &fullrect, outimg);
@@ -508,7 +509,7 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 		// Draw filtered rects (thick blue line)
-		if (display) {
+//		if (display) {
 			for (int i = 0; i < 4; i++)
 			{
 				if (outimg && rectangleList[i].isValid())
@@ -519,7 +520,7 @@ void *cv_threadfunc (void *ptr) {
 					cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
 				}
 			}
-		}
+//		}
 
 		#ifdef DEBUG_MAIN
 		printf("Top distance: %d\n", outgoing.distHigh);
@@ -528,10 +529,12 @@ void *cv_threadfunc (void *ptr) {
 
 		CvPoint cent1 = cvPoint(320, 0);
 		CvPoint cent2 = cvPoint(320, 480);
- 		if (display) { cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 ); }
+ 		cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 );
 
 		/* SEND TO CRIO */
 		sendData(&outgoing, CRRsocket);
+
+		axisSetImg(outimg);
 
 		if( cvWaitKey( 15 )==27 )
 		{
@@ -591,9 +594,16 @@ int main(int argc, char **argv)
 	freenect_set_video_callback(f_dev, rgb_cb);
 	freenect_set_video_format(f_dev, FREENECT_VIDEO_IR_8BIT);
 
+	if (axisInit(tempimg) != 0) {
+		printf("Failed to launch axis server\n");
+	}
+
 	printf("init done\n");
 
 	freenect_start_video(f_dev);
 
 	while(!die && freenect_process_events(f_ctx) >= 0 );
+
+	// If we ever get here, might as well let the webserver shutdown
+	axisStop();
 }

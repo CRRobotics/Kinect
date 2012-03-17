@@ -2,10 +2,10 @@ CXXFLAGS =	-O2 -g -Wall -fmessage-length=0 `pkg-config opencv --cflags ` -I /usr
 
 
 
-OBJS =	testhull.o RobotMath.o beagleSender.o
+OBJS =	testhull.o RobotMath.o beagleSender.o mongoose.o axisSender.o
 
 
-LIBS =	`pkg-config opencv --libs` -lfreenect
+LIBS =	`pkg-config opencv --libs` -lfreenect --ldl --pthread
 
 TARGET =	kinectopencv
 
