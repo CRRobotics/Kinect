@@ -92,6 +92,8 @@ int CRRsocket;
 
 // Display images?
 bool display;
+bool draw;
+bool axis;
 
 
 /*
@@ -396,7 +398,7 @@ void *cv_threadfunc (void *ptr) {
 
 		/* PULL RAW IMAGE FROM KINECT */
 		pthread_mutex_lock( &mutex_rgb );
-		if (display) { cvCopy(rgbimg, dimg, 0); }
+		if (draw) { cvCopy(rgbimg, dimg, 0); }
 		cvCopy(rgbimg, timg, 0);
 		pthread_mutex_unlock( &mutex_rgb );
 
@@ -410,7 +412,7 @@ void *cv_threadfunc (void *ptr) {
 		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
 		/* OUTPUT PROCESSED OR RAW IMAGE (FindContours destroys image) */
-		cvCvtColor(dimg, outimg, CV_GRAY2BGR);
+		if (draw) cvCvtColor(dimg, outimg, CV_GRAY2BGR);
 
 		/* CONTOUR FINDING */
 		cvFindContours(timg, storage, &contours, sizeof(CvContour), CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE, cvPoint(0,0));
@@ -434,7 +436,7 @@ void *cv_threadfunc (void *ptr) {
 				hullcount = hull->total;
 
 				// Draw hull (red line)
-//				if (display) {
+				if (draw) {
 					draw1 = (CvPoint*)cvGetSeqElem(hull, hullcount - 1);
 					for (int i = 0; i < hullcount; i++)
 					{
@@ -442,7 +444,7 @@ void *cv_threadfunc (void *ptr) {
 						cvLine( outimg, *draw1, *draw2, CV_RGB(255,0,0), 1, 8, 0 );
 						draw1 = draw2;
 					}
-//				}
+				}
 
 				// Convert polys from convex hull to rectangles, fill list
 				polyToQuad(hull, &fullrect, outimg);
@@ -509,7 +511,7 @@ void *cv_threadfunc (void *ptr) {
 		}
 
 		// Draw filtered rects (thick blue line)
-//		if (display) {
+		if (draw) {
 			for (int i = 0; i < 4; i++)
 			{
 				if (outimg && rectangleList[i].isValid())
@@ -520,7 +522,7 @@ void *cv_threadfunc (void *ptr) {
 					cvLine( outimg, *(rectangleList[i].points[1]), *(rectangleList[i].points[3]), CV_RGB(0,0,255), 2, 8, 0 );
 				}
 			}
-//		}
+		}
 
 		#ifdef DEBUG_MAIN
 		printf("Top distance: %d\n", outgoing.distHigh);
@@ -529,12 +531,12 @@ void *cv_threadfunc (void *ptr) {
 
 		CvPoint cent1 = cvPoint(320, 0);
 		CvPoint cent2 = cvPoint(320, 480);
- 		cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 );
+ 		if (draw) cvLine( outimg, cent1, cent2, CV_RGB(0,255,0), 1, 8, 0 );
 
 		/* SEND TO CRIO */
 		sendData(&outgoing, CRRsocket);
 
-		axisSetImg(outimg);
+		if (axis) axisSetImg(outimg);
 
 		if( cvWaitKey( 15 )==27 )
 		{
@@ -556,18 +558,28 @@ void *cv_threadfunc (void *ptr) {
  */
 int main(int argc, char **argv)
 {
+	int i;
 	freenect_context *f_ctx;
 	freenect_device *f_dev;
 
 	display = 0;
+	draw = 0;
+	axis = 0;
 
 	int res = 0;
 	int die = 0;
 	printf("Code Red Kinect Vision init\n");
 
-	if (argc > 1 && strcmp(argv[1],"--display") == 0) {
-		display = 1;
+	for (i=1; i<argc; i++) {
+		if (strcmp(argv[i],"--display")) display = 1;
+		else if (strcmp(argv[i],"--axis")) axis = 1;
 	}
+
+	if (axis || display) draw = 1;
+
+	/* if (argc > 1 && strcmp(argv[1],"--display") == 0) {
+		display = 1;
+	} */
 			
 	if (freenect_init(&f_ctx, NULL) < 0) {
 		printf("freenect_init() failed\n");
@@ -594,8 +606,10 @@ int main(int argc, char **argv)
 	freenect_set_video_callback(f_dev, rgb_cb);
 	freenect_set_video_format(f_dev, FREENECT_VIDEO_IR_8BIT);
 
-	if (axisInit(tempimg) != 0) {
-		printf("Failed to launch axis server\n");
+	if (axis) {
+		if (axisInit(tempimg) != 0) {
+			printf("Failed to launch axis server\n");
+		}
 	}
 
 	printf("init done\n");
@@ -605,5 +619,5 @@ int main(int argc, char **argv)
 	while(!die && freenect_process_events(f_ctx) >= 0 );
 
 	// If we ever get here, might as well let the webserver shutdown
-	axisStop();
+	if (axis) axisStop();
 }
