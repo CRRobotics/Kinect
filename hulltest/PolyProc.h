@@ -15,7 +15,7 @@ public:
 };
 
 void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img, bool display);
-bool FilterSub(vector<PolyVertices> &list, PolyVertices poly);
+bool FilterInnerSub(vector<PolyVertices> &list, PolyVertices poly);
 void FilterInnerRects(vector<PolyVertices> &list);
 void SortRects(vector<PolyVertices> &list);
 

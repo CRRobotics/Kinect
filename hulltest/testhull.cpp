@@ -93,9 +93,13 @@ void *cv_threadfunc (void *ptr) {
 	{ 
 		// Sequence to run ApproxPoly on
 		CvSeq* polyseq = cvCreateSeq( CV_SEQ_KIND_CURVE | CV_32SC2, sizeof(CvSeq), sizeof(CvPoint), storage );
-		CvSeq* contours; // Raw contours list
-		CvSeq* hull; // Current convex hull
-		int hullcount; // # of points in hull
+		// Raw contours list
+		CvSeq* contours; 
+		// Current convex hull
+		CvSeq* hull;
+		// # of points in hull
+		int hullcount; 
+
 
 		/* PULL RAW IMAGE FROM KINECT */
 		pthread_mutex_lock( &mutex_rgb );
@@ -112,7 +116,7 @@ void *cv_threadfunc (void *ptr) {
 		/* THRESHOLD*/
 		cvThreshold(timg, timg, 100, 255, CV_THRESH_BINARY);
 
-		/* OUTPUT PROCESSED OR RAW IMAGE (FindContours destroys image) */
+		/* OUTPUT PROCESSED OR RAW IMAGE */
 		if (display) { cvCvtColor(dimg, outimg, CV_GRAY2BGR); }
 
 		/* CONTOUR FINDING */
@@ -126,7 +130,7 @@ void *cv_threadfunc (void *ptr) {
 
 		while (contours) // Run for all polygons
 		{
-			// List of raw rectangles
+			// Raw rectangle
 			PolyVertices fullrect;
 
 			// Filter noise
@@ -147,7 +151,7 @@ void *cv_threadfunc (void *ptr) {
 					}
 				}
 
-				// Convert polys from convex hull to rectangles, fill list
+				// Convert polys from convex hull to rectangles
 				polyToQuad(hull, &fullrect, outimg, display);
 
 				// Filter for bad rectangles
@@ -176,11 +180,14 @@ void *cv_threadfunc (void *ptr) {
 		/* FILTER OVERLAPPING RECTANGLES */
 		FilterInnerRects(rectangleList);
 
+		/* CHECK DEGREE OF FILL TO FILTER LIGHTS, ETC */
+		FilterBrightRects(rectangleList);
+
 		/* SORT INTO CORRECT BUCKET */
 		SortRects(rectangleList);
 
 		/* DRAW & PROCESS MATH; FILL SEND STRUCT */
-		// TODO: Might want to make the math stuff static for efficiency.
+		// TODO: Make the math stuff static
 		RobotMath robot;
 		TrackingData outgoing;
 		memset(&outgoing, 0, sizeof(TrackingData));

@@ -24,6 +24,7 @@ void PolyVertices::invalidate()	{ center.x = center.y = 0; }
 
 bool PolyVertices::isValid() { return (center.x != 0 && center.y != 0); }
 
+// Pending decision on how to filter oddly formed rects
 bool PolyVertices::isMalformed() { return false; }
 
 // Compare centers
@@ -37,7 +38,7 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img, bool display
 {
 	// Sequence is the hull.
 	// poly->points is the array that stores the points of the rectangle.
-	// img is the image we are drawing lines and such on. Not strictly necessary.
+	// img is the image we are drawing on. Not required.
 	#ifdef DEBUG_POLY
 	printf("Sequence: %d\n", sequence->total);
 	#endif
@@ -117,7 +118,7 @@ void polyToQuad(CvSeq* sequence, PolyVertices *poly, IplImage* img, bool display
 }
 
 // Return whether we want to delete poly. Subroutine of FilterInnerRects.
-bool FilterSub(vector<PolyVertices> &list, PolyVertices poly)
+bool FilterInnerSub(vector<PolyVertices> &list, PolyVertices poly)
 {
 	for (int i = 0; i < list.size(); i++)
 	{
@@ -135,20 +136,18 @@ void FilterInnerRects(vector<PolyVertices> &list)
 	vector<PolyVertices>::iterator p = list.begin();
 	while (p < list.end()) 
 	{
-		if (FilterSub(list, *p))
+		if (FilterInnerSub(list, *p))
 			p = list.erase(p);
 		else
 			++p;
 	}
 }
 
-// The word "must" in the following function should be interpreted to mean "if we are not missing more than 
-// however many rectangles we think we are missing." There is really no provision yet for missing >1, but it 
-// shouldn't be too much of an issue.
+// TODO: make this always at least return the top rect.
+// In fact, this entire function is somewhat obsolete.
 void SortRects(vector<PolyVertices> &list)
 {
 	// Fill with invalid structs to ensure no segfaults.
-	// TODO: if we decide that missing >1 is not worth coding, we could return here if 4 - list.size() is >1.
 	#ifdef DEBUG_SORT
 	printf("Empty structs pushed: %d\n", 4 - list.size());
 	#endif
