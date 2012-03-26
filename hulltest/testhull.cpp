@@ -38,6 +38,7 @@ freenectopencv.cpp
 bool display;
 
 #include "PolyProc.h"
+#include "FilterBright.h"
 #include "RobotMath.h"
 #include "beagleSender.h"
 

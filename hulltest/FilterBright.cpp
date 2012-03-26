@@ -1,16 +1,22 @@
 //#define DEBUG_BRITE
 
+#include <cv.h>
+
+#include "FilterBright.h"
+
+using namespace std;
+
 /*
  * Filters out rects mostly filled with white.
- * This removes things like lights, which are solid blocks of white.
+ * This removes things like lights, which are near-solid blocks of white.
  * Code is essentially copy of FilterInnerRects().
  */
-void FilterBrightRects(vector<PolyVertices> &list)
+void FilterBrightRects(vector<PolyVertices> &list, IplImage *img)
 {
 	vector<PolyVertices>::iterator p = list.begin();
 	while (p < list.end()) 
 	{
-		if (FilterBrightSub(*p))
+		if (FilterBrightSub(*p, img))
 			p = list.erase(p);
 		else
 			++p;
@@ -21,59 +27,93 @@ void FilterBrightRects(vector<PolyVertices> &list)
  * Decides if a rect is filled enough to be filtered out.
  * Subroutine of FilterBrightRects().
  */
-bool FilterBrightSub(PolyVertices poly)
+bool FilterBrightSub(PolyVertices poly, IplImage *img)
 {
-	vector<CvPoint> leftBounds;
-	vector<CvPoint> rightBounds;
-	CvPoint top, left, right, bottom;
-	top = left = right = bottom = poly.points[0];
-	for (int i = 0; i < 4; i++)
-	{
-		if (points[i].y < top.y)
-			top = points[i];
-		if (points[i].y > bottom.y)
-			bottom = points[i];
-		if (points[i].x < bottom.x)
-			left = points[i];
-		if (points[i].x > bottom.x)
-			right = points[i];
-	}
+	vector<int> leftBounds;
+	vector<int> rightBounds;
+	// Get copies; TR is top right point, and so on
+	CvPoint TR, TL, BL, BR;
+	TR = *(poly.points[3]);
+	TL = *(poly.points[2]);
+	BL = *(poly.points[0]);
+	BR = *(poly.points[1]);
 
-	/*
-	 * TODO: find which of the four sides constitute the "left" bounds and
-	 * which sides constitute the "right" bounds must be found before we can
-	 * start calling GetBounds().
-	 * As of yet, I have no ideas on how to decide this; it might just be a
-	 * huge pile of cases, but I'd rather use a more elegant solution.
-	 *
-	 * Following is incorrect code illustrating how GetBounds() would be
-	 * called conceptually.
+	/* TODO: Unsure whether the logic in the following cases is sound. */
 
-	GetBounds(top.x, left.x, top.y, left.y, leftBounds);
-	GetBounds(left.x, bottom.x, left.y, bottom.y, leftBounds);
-	GetBounds(top.x, right.x, top.y, right.y, rightBounds);
-	GetBounds(right.x, bottom.x, right.y, bottom.y, rightBounds);
-
+	/* TODO: not yet handling special cases of horizontal top or bottom
+	 * sides. I think it could be handled by having getBounds() push 
+	 * only the left point to leftBounds and only the right point to 
+	 * rightBounds. 
 	 */
 
-	// Avoid division by zero in return
+	// TR is lower than TL:
+	if (TR.y > TL.y)
+	{
+		// TL to TR is first right bound
+		GetBounds(TL.x, TR.x, TL.y, TR.y, rightBounds);
+		// TL to BL is first left bound
+		GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
+
+		// BR is lower than BL:
+		if (BR.y > BL.y)
+		{
+			// Left edge is TL-BL-BR, right edge is TL-TR-BR
+			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
+			GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
+		}
+		// BR is higher than BL:
+		else if (BR.y < BL.y)
+		{
+			// Left edge is TL-BL, right edge is TL-TR-BR-BL
+			GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
+			GetBounds(BR.x, BL.x, BR.y, BL.y, rightBounds);
+		}
+	}
+	// TR is higher than TL:
+	else if (TR.y < TL.y)
+	{
+		// TR to TL is first left bound
+		GetBounds(TR.x, TL.y, TR.y, TL.y, leftBounds);
+		// TR to BR is first right bound
+		GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
+
+		// BR is lower than BL:
+		if (BR.y > BL.y)
+		{
+			// Left edge is TR-TL-BL-BR, right edge is TR-BR
+			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
+			GetBounds(BL.x, BR.x, BL.y, BR.y, leftBounds);
+		}
+		// BR is higher than BL:
+		else if (BR.y < BL.y)
+		{
+			// Left edge is TR-TL-BL, right edge is TR-BR-BL
+			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
+			GetBounds(BR.x, BL.x, BR.y, BR.y, rightBounds);
+		}
+	}
+
+
+	/* TODO: Verify that all memory-related use in this section is correct */
+
+	// init to 1 to avoid possible division by zero in return
 	int white = 1;
 	int black = 1;
-	// top.y is the baseline, and is conceptually 0 for purposes of getting
-	// the appropriate points from leftBound and rightBound.
+	// The indices for leftBound and rightBound must start at 0; the
+	// pointers accessing the image must start at top.y
 	int yOffset = top.y;
-	for (int y = 0; y < bottom.y - yOffset; y++)
+	for (int y = top.y; y < bottom.y; y++)
 	{
-		for (int x = leftBound[y]; x < rightBound[y]; x++)
+		// Get pointer to beginning of row
+		uchar *ptr = (uchar*)(img->imageData + (y * img->widthStep));
+		// For all pixels on row from leftBound to rightBound
+		for (int x = leftBound[y - yOffset]; x < rightBound[y - yOffset]; x++)
 		{
-			/* TODO: ACCESS EACH PIXEL AND GET VALUE */
-			/*
-			 * Pseudocode:
-			 * if pixel at (y + yOffset, x) is white
-			 *   white++
-			 * else
-			 *   black++
-			 */
+			int pixel = ptr[x];
+			if (pixel > 0)
+				white++;
+			else
+				black++;
 		}
 	}
 
@@ -82,18 +122,18 @@ bool FilterBrightSub(PolyVertices poly)
 	 * something like 9:1 (maybe even higher) sounds about right; decide on
 	 * this later.
 	 */
-	return (double)(white/black) > 0.9;
+	return (double)(white/black) > 0.0;
 }
 
 /*
  * Implementation of Bresenham's line algorithm.
- * Gets all points in a line, for use in making left/right boundaries on each
- * line for FilterBrightRects to count all pixels in a rect.
+ * Gets leftmost x-point of a line on each row, for use in making left/right 
+ * boundaries on each line for FilterBrightRects to count all pixels in a rect.
  * This implementation performs push_back() only and also processes points in
- * the order in which they appear, top to bottom.
  */
 void GetBounds(int x0, int x1, int y0, int y1, vector<CvPoint> &bounds)
 {
+	// Generalize for slope
 	bool steep = abs(y1 - y0) > abs(x1 - x0);
 	if (steep)
 	{
@@ -107,19 +147,31 @@ void GetBounds(int x0, int x1, int y0, int y1, vector<CvPoint> &bounds)
 	int y = y0;
 	int inc;
 
+	// Which direction to go in both x and y depending on slope
 	inc = (x0 < x1) ? 1 : -1;
 	ystep = (y0 < y1) ? 1 : -1;
 
+	bool plotted = false;
 	for (int x = x0; x < x1; x += inc)
 	{
-		bounds.push_back(steep ? CvPoint(y,x) : CvPoint(x,y));
+		// Only plot once per Y-line
+		if (!plotted)
+		{
+			bounds.push_back(steep ? x : y);
+			plotted = true;
+		}
 		error = error - deltay;
 		if (error < 0)
 		{
 			y += ystep;
 			error += deltax;
+			plotted = false;
 		}
 	}
+
+#ifdef DEBUG_BRITE
+	printf("Delta y: %d -- Vector Size: %d", deltay, bounds.size());
+#endif
 }
 
 void swap(int &a, int &b)
