@@ -27,7 +27,7 @@ void FilterBrightRects(vector<PolyVertices> &list, IplImage *img)
  * Decides if a rect is filled enough to be filtered out.
  * Subroutine of FilterBrightRects().
  */
-bool FilterBrightSub(PolyVertices poly, IplImage *img)
+bool FilterBrightSub(const PolyVertices &poly, IplImage *img)
 {
 	vector<int> leftBounds;
 	vector<int> rightBounds;
@@ -116,8 +116,8 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 	{
 		// Get pointer to beginning of row
 		uchar *ptr = (uchar*)(img->imageData + (y * img->widthStep));
-		// For all pixels on row from leftBound to rightBound
-		for (int x = leftBound[y - yOffset]; x < rightBound[y - yOffset]; x++)
+		// For all pixels on row from leftBounds to rightBounds
+		for (int x = leftBounds[y - yOffset]; x < rightBounds[y - yOffset]; x++)
 		{
 			int pixel = ptr[x];
 			if (pixel > 0)
