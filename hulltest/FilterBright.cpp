@@ -46,9 +46,14 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 	 * rightBounds. 
 	 */
 
+	// Range of rows to scan
+	int topY;
+	int botY;
+
 	// TR is lower than TL:
 	if (TR.y > TL.y)
 	{
+		topY = TL.y;
 		// TL to TR is first right bound
 		GetBounds(TL.x, TR.x, TL.y, TR.y, rightBounds);
 		// TL to BL is first left bound
@@ -57,6 +62,7 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 		// BR is lower than BL:
 		if (BR.y > BL.y)
 		{
+			botY = BR.y;
 			// Left edge is TL-BL-BR, right edge is TL-TR-BR
 			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
 			GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
@@ -64,6 +70,7 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 		// BR is higher than BL:
 		else if (BR.y < BL.y)
 		{
+			botY = BL.y;
 			// Left edge is TL-BL, right edge is TL-TR-BR-BL
 			GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
 			GetBounds(BR.x, BL.x, BR.y, BL.y, rightBounds);
@@ -72,6 +79,7 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 	// TR is higher than TL:
 	else if (TR.y < TL.y)
 	{
+		topY = TR.y;
 		// TR to TL is first left bound
 		GetBounds(TR.x, TL.y, TR.y, TL.y, leftBounds);
 		// TR to BR is first right bound
@@ -80,6 +88,7 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 		// BR is lower than BL:
 		if (BR.y > BL.y)
 		{
+			botY = BR.y;
 			// Left edge is TR-TL-BL-BR, right edge is TR-BR
 			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
 			GetBounds(BL.x, BR.x, BL.y, BR.y, leftBounds);
@@ -87,6 +96,7 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 		// BR is higher than BL:
 		else if (BR.y < BL.y)
 		{
+			botY = BL.y;
 			// Left edge is TR-TL-BL, right edge is TR-BR-BL
 			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
 			GetBounds(BR.x, BL.x, BR.y, BR.y, rightBounds);
@@ -100,9 +110,9 @@ bool FilterBrightSub(PolyVertices poly, IplImage *img)
 	int white = 1;
 	int black = 1;
 	// The indices for leftBound and rightBound must start at 0; the
-	// pointers accessing the image must start at top.y
-	int yOffset = top.y;
-	for (int y = top.y; y < bottom.y; y++)
+	// pointers accessing the image must start at topY
+	int yOffset = topY;
+	for (int y = topY; y < botY; y++)
 	{
 		// Get pointer to beginning of row
 		uchar *ptr = (uchar*)(img->imageData + (y * img->widthStep));
