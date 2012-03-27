@@ -216,8 +216,8 @@ void GetBounds(int x0, int x1, int y0, int y1, vector<CvPoint> &bounds)
 	bool plotted = false;
 	for (int x = x0; x < x1; x += inc)
 	{
-		// Only plot once per Y-line, and don't repeat on first point
-		if (!plotted)
+		// Only plot once per row, and don't repeat on first row
+		if (!plotted && !(y == y0))
 		{
 			bounds.push_back(steep ? x : y);
 			plotted = true;
