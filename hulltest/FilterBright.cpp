@@ -1,4 +1,4 @@
-//#define DEBUG_BRITE
+#define DEBUG_BRITE
 
 #include <cv.h>
 
@@ -75,6 +75,14 @@ bool FilterBrightSub(const PolyVertices &poly, IplImage *img)
 			GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
 			GetBounds(BR.x, BL.x, BR.y, BL.y, rightBounds);
 		}
+		// BR is on same row as BL:
+		else
+		{
+			assert(BR.y == BL.y && "TR.y not equal to TL.y despite check");
+			botY = BL.y;
+			// Left edge is TL-BL, right edge is TL-TR-BR
+			GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
+		}
 	}
 	// TR is higher than TL:
 	else if (TR.y < TL.y)
@@ -101,7 +109,51 @@ bool FilterBrightSub(const PolyVertices &poly, IplImage *img)
 			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
 			GetBounds(BR.x, BL.x, BR.y, BR.y, rightBounds);
 		}
+		// BR on same row as BL:
+		else
+		{
+			assert(BR.y == BL.y && "TR.y not equal to TL.y despite check");
+			botY = BL.y;
+			// Left edge is TR-TL-BL, right edge is TR-BR
+			GetBounds(TL.x, BL.x, TL.y, BL.y, leftBounds);
+		}
 	}
+	// TR is at equal level to TL:
+	else
+	{
+		assert(TR.y == TL.y && "TR.y not equal to TL.y despite check");
+		top.y = TR.y;
+		// TL to BL is first left bound
+		GetBounds(TL.x, BL.x, TL.y, BL.y, rightBounds);
+		// TR to BR is first right bound
+		GetBounds(TR.x, BR.x, TR.y, BR.y, rightBounds);
+
+		// BR is lower than BL:
+		if (BR.y > BL.y)
+		{
+			botY = BR.y;
+			// Left edge is TL-BL-BR, right edge is TR-BR
+			GetBounds(TL.x, BR.x, TL.y, BR.y, leftBounds);
+		}
+		// BR is higher than BL:
+		else if (BR.y < BL.y)
+		{
+			botY = BL.y;
+			// Left edge is TL-BL, right edge is TR-BR-BL
+			GetBounds(BR.x, BL.x, BR.y, BL.y, rightBounds);
+		}
+		// BR on same row as BL:
+		else
+		{
+			assert(BR.y == BL.y && "TR.y not equal to TL.y despite check");
+			botY = BL.y;
+			// Left edge is TL-BL, right edge is TR-BR
+		}
+	}
+
+#ifdef DEBUG_BRITE
+	printf("leftBounds.size(): %d\nrightBounds.size():%d\nbot.y - top.y: %d\n", leftBounds.size(), rightBounds.size(), bot.y - top.y);
+#endif
 
 
 	/* TODO: Verify that all memory-related use in this section is correct */
@@ -164,7 +216,7 @@ void GetBounds(int x0, int x1, int y0, int y1, vector<CvPoint> &bounds)
 	bool plotted = false;
 	for (int x = x0; x < x1; x += inc)
 	{
-		// Only plot once per Y-line
+		// Only plot once per Y-line, and don't repeat on first point
 		if (!plotted)
 		{
 			bounds.push_back(steep ? x : y);
